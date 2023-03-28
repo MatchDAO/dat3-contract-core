@@ -1,0 +1,21 @@
+[package]
+name = 'DAT3Coin'
+version = '0.8'
+upgrade_policy = "compatible"
+[dependencies]
+# # https://github.com/aptos-labs/aptos-core.git
+AptosFramework = { local = "../../aptos-core-1.0.4/aptos-move/framework/aptos-framework" }
+AptosToken = { local = "../../aptos-core-1.0.4/aptos-move/framework/aptos-token" }
+DAT3Coin = { local = "../DAT3-coins-contract1" }
+
+
+[addresses]
+std = "0x1"
+aptos_std = "0x1"
+aptos_framework = "0x1"
+dat3 = "0xba6f578786f2ca745814d72b6240781680d85c1204f2253cbf5ad07ec3ee52a0"
+dat3_admin = "0xfb801e545332e5811534e3bc28a033d0d31a833c14f1df8518b5cdd07bd36dab"
+dat3_pool = "0x6b4960daf7597cd8a67806311641bd31219c119aa97ce1eedd84f19f750c8898"
+dat3_routel = "0x1ac8479dc744b1e77e7769d3132d28a735a2db17cc0e66179ad561131ad1e39d"
+dat3_stake = "0xe943b9784a6d623624772cf5dc6303e16400de16413828430bd550fd7eb23172"
+dat3_nft = "0x124d69858b8003fdd007b3afc303c9cd4e3b96c71eeccc3a7ea2b0b87976f01d"
