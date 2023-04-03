@@ -106,14 +106,15 @@ module dat3::dat3_coin_manager {
         coin::register<DAT3>(owner);
         move_to(&resourceSigner, MintTime { time: 0, supplyAmount: 0, epoch: 0, });
         let time = timestamp::now_seconds();
+        let epoch = reconfiguration::current_epoch();
         move_to(&resourceSigner,
             GenesisInfo {
                 genesis_time: time,
-                epoch: 0,
+                epoch,
             }
         );
         //Inform Genesis
-        dat3::dat3_stake::init(owner, time);
+        dat3::dat3_stake::init(owner, time, epoch);
     }
 
     public entry fun mint_to(_owner: &signer) acquires HodeCap, MintTime, GenesisInfo
@@ -201,20 +202,12 @@ module dat3::dat3_coin_manager {
     /* VIEW FUNCTIONS */
     /*********************/
     #[view]
-    public fun genesis_info(): (u64, u128, u64) acquires MintTime, GenesisInfo
+    public fun genesis_info(): (u64, u128, u64, u64) acquires MintTime, GenesisInfo
     {
+        let mint_num = assert_mint_num();
         let last = borrow_global<MintTime>(@dat3_admin);
         let gen = borrow_global<GenesisInfo>(@dat3_admin);
-        let now = timestamp::now_seconds();
-        let year = ((now - gen.genesis_time) as u128) / SECONDS_OF_YEAR ;
-        let m = 1u128;
-        let i = 0u128;
-        while (i < year) {
-            m = m * 2;
-            i = i + 1;
-        };
-        let mint = TOTAL_EMISSION * (coin::decimals<DAT3>() as u128) / m ;
-        (gen.genesis_time, mint, last.time)
+        (gen.genesis_time, mint_num, last.epoch, gen.epoch)
     }
 
     /*********/
@@ -289,6 +282,7 @@ module dat3::dat3_coin_manager {
     fun assert_mint_time_test(dat3: &signer, to: &signer, fw: &signer) acquires MintTime, GenesisInfo
     {
         genesis::setup();
+
         timestamp::set_time_has_started_for_testing(fw);
         timestamp::update_global_time_for_test(1679899905000000);
         let addr = signer::address_of(dat3);
@@ -322,6 +316,7 @@ module dat3::dat3_coin_manager {
     #[test(dat3 = @dat3, to = @dat3_admin, fw = @aptos_framework)]
     fun dat3_stake(dat3: &signer, to: &signer, fw: &signer)
     {
+        genesis::setup();
         timestamp::set_time_has_started_for_testing(fw);
         timestamp::update_global_time_for_test(1651255555255555);
         let addr = signer::address_of(dat3);
@@ -395,10 +390,11 @@ module dat3::dat3_coin_manager {
     #[test(dat3 = @dat3, to = @dat3_admin, fw = @aptos_framework)]
     fun dat3_routel_call_1(dat3: &signer, to: &signer, fw: &signer)
     {
+        genesis::setup();
         debug::print(&u64_to_string(6u64));
         debug::print(&intToString(6u64));
-        timestamp::set_time_has_started_for_testing(fw);
-        timestamp::update_global_time_for_test(1);
+         timestamp::set_time_has_started_for_testing(fw);
+         timestamp::update_global_time_for_test(1);
 
         let addr = signer::address_of(dat3);
 
@@ -406,7 +402,7 @@ module dat3::dat3_coin_manager {
         let _aptos = signer::address_of(fw);
         create_account(addr);
         create_account(to_addr);
-        let (burn_cap, mint_cap) = aptos_framework::aptos_coin::initialize_for_test(fw);
+        let (burn_cap, mint_cap) = aptos_framework::aptos_coin::initialize_for_test_without_aggregator_factory(fw);
         coin::deposit(signer::address_of(dat3), coin::mint(100111000000, &mint_cap));
         coin::deposit(signer::address_of(dat3), coin::mint(101110000000, &mint_cap));
 

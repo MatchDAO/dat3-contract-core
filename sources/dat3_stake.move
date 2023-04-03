@@ -4,13 +4,13 @@ module dat3::dat3_stake {
     use std::vector;
 
     use aptos_std::math128;
+    use aptos_framework::account::{Self, SignerCapability};
     use aptos_framework::coin::{Coin, Self};
+    use aptos_framework::reconfiguration;
     use aptos_framework::timestamp;
 
     use dat3::dat3_coin::DAT3;
     use dat3::simple_mapv1::{Self, SimpleMapV1};
-    use aptos_framework::account::SignerCapability;
-    use aptos_framework::account;
 
     friend dat3::dat3_coin_manager;
     struct SignerCapabilityStore has key, store {
@@ -43,6 +43,7 @@ module dat3::dat3_stake {
     struct GenesisInfo has key, store {
         /// seconds
         genesis_time: u64,
+        epoch: u64,
     }
 
     /********************/
@@ -53,11 +54,12 @@ module dat3::dat3_stake {
     const MAX_SUPPLY_AMOUNT: u64 = 5256000 ;
     //365
     const SECONDS_OF_YEAR: u128 = 31536000 ;
+    const EPOCH_OF_YEAR: u128 = 4380 ;
     //365
     const SECONDS_OF_WEEK: u128 = 604800 ;
     //ONE DAY
     const SECONDS_OF_DAY: u128 = 86400 ;
-
+    const EPOCH_OF_DAY: u64 = 12 ;
     const TOTAL_EMISSION: u128 = 7200;
     //7d of seconds
     const ONE_W: u64 = 604800;
@@ -75,7 +77,6 @@ module dat3::dat3_stake {
     const ALREADY_EXISTS: u64 = 112;
     const INCENTIVE_POOL_NOT_FOUND: u64 = 400;
     const DEADLINE_ERR: u64 = 401;
-
 
 
     /********************/
@@ -124,8 +125,8 @@ module dat3::dat3_stake {
             if (duration > 0) {
                 flexible = false;
             };
-            if(user.start_time==0){
-                user.start_time=timestamp::now_seconds();
+            if (user.start_time == 0) {
+                user.start_time = timestamp::now_seconds();
             };
             user.duration = duration;
             user.flexible = flexible;
@@ -150,7 +151,6 @@ module dat3::dat3_stake {
         user.amount_staked = 0;
         user.duration = 0;
         user.start_time = 0;
-
     }
 
     //more_stake
@@ -168,8 +168,8 @@ module dat3::dat3_stake {
         coin::merge(&mut pool.stake, stake);
         //add user staked
         let user = simple_mapv1::borrow_mut(&mut pool_info.data, &addr);
-        if(user.start_time==0){
-            user.start_time=timestamp::now_seconds();
+        if (user.start_time == 0) {
+            user.start_time = timestamp::now_seconds();
         };
         user.amount_staked = user.amount_staked + amount;
     }
@@ -193,11 +193,11 @@ module dat3::dat3_stake {
         }else {
             duration = user.amount_staked + duration;
         };
-        if(duration>0){
-            user.flexible=false;
+        if (duration > 0) {
+            user.flexible = false;
         };
-        if(user.start_time==0){
-            user.start_time=timestamp::now_seconds();
+        if (user.start_time == 0) {
+            user.start_time = timestamp::now_seconds();
         };
         user.duration = duration;
     }
@@ -218,7 +218,7 @@ module dat3::dat3_stake {
     /* SYS PRIVATE FUNCTIONS */
     /*********************/
     //init
-    public entry fun init(owner: &signer, time: u64)
+    public entry fun init(owner: &signer, genesis_time: u64, epoch: u64)
     {
         let addr = signer::address_of(owner);
         assert!(addr == @dat3, error::permission_denied(PERMISSION_DENIED));
@@ -228,7 +228,7 @@ module dat3::dat3_stake {
         move_to(&resourceSigner, SignerCapabilityStore {
             sinCap
         });
-        move_to<GenesisInfo>(&resourceSigner, GenesisInfo { genesis_time: time });
+        move_to<GenesisInfo>(&resourceSigner, GenesisInfo { genesis_time, epoch });
 
         if (!exists<Pool>(addr)) {
             move_to<Pool>(&resourceSigner, Pool {
@@ -252,8 +252,6 @@ module dat3::dat3_stake {
         move_to<PoolInfo>(&resourceSigner, PoolInfo {
             data: s,
         });
-
-
     }
 
     public entry fun set_pool(sender: &signer, rate_of: u128, rate_of_decimal: u128, max_lock_time: u64)
@@ -336,7 +334,6 @@ module dat3::dat3_stake {
                 i = i + 1;
             };
         };
-
     }
 
     /*********************/
@@ -393,7 +390,7 @@ module dat3::dat3_stake {
             start,
             &pool_info.data,
             now,
-            genesis.genesis_time,
+            genesis.epoch,
             pool.rate_of,
             pool.rate_of_decimal
         );
@@ -445,7 +442,7 @@ module dat3::dat3_stake {
                 start,
                 &pool_info.data,
                 now,
-                genesis.genesis_time,
+                genesis.epoch,
                 pool.rate_of,
                 pool.rate_of_decimal
             );
@@ -500,7 +497,7 @@ module dat3::dat3_stake {
             start,
             &pool_info.data,
             now,
-            genesis.genesis_time,
+            genesis.epoch,
             pool.rate_of,
             pool.rate_of_decimal
         );
@@ -519,13 +516,12 @@ module dat3::dat3_stake {
         start: u64,
         data: &SimpleMapV1<address, UserPosition>,
         now: u64,
-        genesis_time: u64,
+        genesis_epoch: u64,
         rate_of: u128,
         rate_of_decimal: u128,
     )
     : (u128, u128, u128, u128, u128, u128)
     {
-        //(total_staking, staking, duration, flexible, all_simulate_reward, roi, vedat3, (apr as u64))
         let total_staking = (staking as u128);
         let _vedat3 = 0u128;
         let time = (now as u128) + 1;
@@ -535,7 +531,7 @@ module dat3::dat3_stake {
         //index
         let i = 0u64;
         let leng = simple_mapv1::length(data);
-
+        let current_epoch = reconfiguration::current_epoch();
         let today_volume = 0u128;
         while (i < leng) {
             let (address, user) = simple_mapv1::find_index(data, i);
@@ -557,7 +553,7 @@ module dat3::dat3_stake {
             };
             i = i + 1;
         };
-        let today_mint = simulate_mint(genesis_time, (time as u64));
+        let today_mint = simulate_mint(genesis_epoch, current_epoch);
         let my_today = 0u128;
         let passed = ((((now - start) as u128) / SECONDS_OF_WEEK) as u64);
         //current user expiration date
@@ -590,7 +586,10 @@ module dat3::dat3_stake {
             };
             //   staking * y''      y''= (week*0.3836)+1
             let taday_r = today_mint * my_today / (today_volume + my_today);
-            let apr = taday_r * 365 * 100000000 / (staking as u128)  / math128::pow(10, (coin::decimals<DAT3>() as u128))  ;
+            let apr = taday_r * 365 * 100000000 / (staking as u128) / math128::pow(
+                10,
+                (coin::decimals<DAT3>() as u128)
+            );
             let roi = (taday_r) * 100000000 / (staking as u128)  ;
 
             _vedat3 = my_today  ;
@@ -614,7 +613,7 @@ module dat3::dat3_stake {
             leng = vector::length(&users);
             let j = 0u64;
             //simulate mint
-            let mint = simulate_mint(genesis_time, (time as u64)) ;
+            let mint = simulate_mint(current_epoch, current_epoch) ;
             let _volume = 0u128;
             let passed = (((time - (start as u128)) / SECONDS_OF_WEEK) as u64);
             //current user expiration date
@@ -655,44 +654,32 @@ module dat3::dat3_stake {
 
             if ((maximum - i) != 1) {
                 time = time + SECONDS_OF_DAY;
+                current_epoch = current_epoch + EPOCH_OF_DAY;
             };
 
             i = i + 1;
         };
 
-        let _apr = all_simulate_reward * 100000000 * 364 / ((time - (start as u128)) / SECONDS_OF_DAY) / math128::pow(10, (coin::decimals<DAT3>() as u128))   ;
+        let _apr = all_simulate_reward * 100000000 * 364 / ((time - (start as u128)) / SECONDS_OF_DAY) / math128::pow(
+            10,
+            (coin::decimals<DAT3>() as u128)
+        )   ;
 
         let roi = all_simulate_reward * 100000000 / (staking as u128)   ;
         return (total_staking, all_simulate_reward, roi, _apr, _vedat3, my_today)
     }
 
 
-    fun assert_mint_num(): u128 acquires GenesisInfo
+    fun simulate_mint(genesis_epoch: u64, now: u64): u128
     {
-        let gen = borrow_global<GenesisInfo>(@dat3_stake);
-        let now = timestamp::now_seconds();
-        let year = ((now - gen.genesis_time) as u128) / SECONDS_OF_YEAR ;
+        let year = ((now - genesis_epoch) as u128) / EPOCH_OF_YEAR ;
         let m = 1u128;
         let i = 0u128;
         while (i < year) {
             m = m * 2;
             i = i + 1;
         };
-        let mint = TOTAL_EMISSION / m  ;
-        return mint * math128::pow(10, (coin::decimals<DAT3>() as u128))
-    }
-
-    fun simulate_mint(genesis_time: u64, now: u64): u128
-    {
-        let year = ((now - genesis_time) as u128) / SECONDS_OF_YEAR ;
-        let m = 1u128;
-        let i = 0u128;
-        while (i < year) {
-            m = m * 2;
-            i = i + 1;
-        };
-        let mint = TOTAL_EMISSION / m / 10  ;
-        return mint * math128::pow(10, (coin::decimals<DAT3>() as u128))
-        // return mint
+        let mint = TOTAL_EMISSION * math128::pow(10, (coin::decimals<DAT3>() as u128)) / m ;
+        return mint
     }
 }
