@@ -1,13 +1,11 @@
 [package]
-name = 'DAT3Coin'
-version = '0.8'
+name = 'DAT3CoinManager'
+version = '0.0.8'
 upgrade_policy = "compatible"
 [dependencies]
 # # https://github.com/aptos-labs/aptos-core.git
 AptosFramework = { local = "../../aptos-core-1.0.4/aptos-move/framework/aptos-framework" }
 AptosToken = { local = "../../aptos-core-1.0.4/aptos-move/framework/aptos-token" }
-DAT3Coin = { local = "../DAT3-coins-contract1" }
-
 
 [addresses]
 std = "0x1"

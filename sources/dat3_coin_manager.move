@@ -9,6 +9,7 @@ module dat3::dat3_coin_manager {
     use aptos_framework::account::{Self, SignerCapability};
     use aptos_framework::coin::{Self, BurnCapability, FreezeCapability, MintCapability};
     use aptos_framework::timestamp::{Self, now_seconds};
+    use aptos_framework::reconfiguration;
 
     use dat3::dat3_coin::DAT3;
     use dat3::dat3_pool_routel;
@@ -23,6 +24,9 @@ module dat3::dat3_coin_manager {
     use dat3::dat3_pool;
     #[test_only]
     use dat3::dat3_stake;
+    #[test_only]
+    use aptos_framework::genesis;
+
 
     struct HodeCap has key {
         burnCap: BurnCapability<DAT3>,
@@ -34,6 +38,7 @@ module dat3::dat3_coin_manager {
     struct GenesisInfo has key, store {
         /// seconds
         genesis_time: u64,
+        epoch: u64,
     }
 
     //Mint Time
@@ -41,6 +46,7 @@ module dat3::dat3_coin_manager {
         /// seconds
         time: u64,
         supplyAmount: u64,
+        epoch: u64,
     }
 
     //hode resource account SignerCapability
@@ -53,17 +59,16 @@ module dat3::dat3_coin_manager {
     const MAX_SUPPLY_AMOUNT: u64 = 5256000 ;
     //365
     const SECONDS_OF_YEAR: u128 = 31536000 ;
+    const EPOCH_OF_YEAR: u128 = 4380 ;
     //ONE DAY
     //  const SECONDS_OF_DAY: u64 = 86400 ;
     const TOTAL_EMISSION: u128 = 7200;
     //0.7
     const TALK_EMISSION: u128 = 5040;
-    //0.1
-    const ACTIVE_EMISSION: u128 = 720;
-    //0.1
-    const STAKE_EMISSION: u128 = 720;
-    //0.1
-    const INVESTER_EMISSION: u128 = 720;
+    //0.15
+    const STAKE_EMISSION: u128 = 1080;
+    //0.15
+    const INVESTER_EMISSION: u128 = 1080;
 
     const PERMISSION_DENIED: u64 = 1000;
     const SUPPLY_OUT_OF_RANGE: u64 = 1001;
@@ -99,11 +104,12 @@ module dat3::dat3_coin_manager {
             sinCap
         });
         coin::register<DAT3>(owner);
-        move_to(&resourceSigner, MintTime { time: 0, supplyAmount: 0 });
+        move_to(&resourceSigner, MintTime { time: 0, supplyAmount: 0, epoch: 0, });
         let time = timestamp::now_seconds();
         move_to(&resourceSigner,
             GenesisInfo {
-                genesis_time: time
+                genesis_time: time,
+                epoch: 0,
             }
         );
         //Inform Genesis
@@ -113,29 +119,30 @@ module dat3::dat3_coin_manager {
     public entry fun mint_to(_owner: &signer) acquires HodeCap, MintTime, GenesisInfo
     {
         assert!(assert_mint_time(), error::aborted(ASSERT_MINT_ERR));
+        //for test
+        // if(!assert_mint_time()){
+        //     return
+        // };
         let last = borrow_global_mut<MintTime>(@dat3_admin);
         if (last.time == 0 || last.time == 1) {
             assert!(signer::address_of(_owner) == @dat3, error::permission_denied(PERMISSION_DENIED));
         };
         let cap = borrow_global<HodeCap>(@dat3_admin);
 
-        let ds = math128::pow(10, ((coin::decimals<DAT3>()) as u128));
-        let mint_num = assert_mint_num();
-        assert!(mint_num > 0, error::aborted(ASSERT_MINT_ERR));
-        let mint_amount = ds * mint_num;
+        let mint_amount = assert_mint_num();
+        assert!(mint_amount > 0, error::aborted(ASSERT_MINT_ERR));
+
         let mint_coins = coin::mint((mint_amount as u64), &cap.mintCap);
         let last = borrow_global_mut<MintTime>(@dat3_admin);
         last.supplyAmount = (mint_amount as u64) + last.supplyAmount;
         last.time = now_seconds();
+        last.epoch = reconfiguration::current_epoch();
         //begin distribute reward
         //reward fund
         dat3::dat3_pool::deposit_reward_coin(
             coin::extract(&mut mint_coins, ((mint_amount * TALK_EMISSION / TOTAL_EMISSION) as u64))
         );
-        //active reward fund
-        dat3::dat3_pool::deposit_active_coin(
-            coin::extract(&mut mint_coins, ((mint_amount * ACTIVE_EMISSION / TOTAL_EMISSION) as u64))
-        );
+
         //stake reward fund
         dat3::dat3_stake::mint_pool(
             coin::extract(&mut mint_coins, ((mint_amount * STAKE_EMISSION / TOTAL_EMISSION) as u64))
@@ -157,11 +164,14 @@ module dat3::dat3_coin_manager {
         if (last.supplyAmount >= MAX_SUPPLY_AMOUNT * math64::pow(10, (coin::decimals<DAT3>() as u64))) {
             return false
         };
-        if (last.time == 0) {
+        if (last.epoch == 0) {
             return true
-        }else if (last.time == 1) {
-            return true
-        }else if (now_seconds() - last.time >= 86399) {
+        } else if (reconfiguration::current_epoch() - last.epoch >= 12) {
+            //current_epoch - last.epoch =12
+            // 0  2  4  6  8  10 12 14 16 18 20  22   0    2   4  6   8   10  12  14  16  18  20  22  0   2  4  6  8  10 12 14 16 18 20 22 0
+            // 1  2  3  4  5  6  7  8  9  10  11  12  13  14  15  16  17  18  19  20  21  22  23  24  25  26 27 28 29 30 31 32 33 34 35 36 37 38 39 40
+            // 1                                      1                                               1                                    1
+            //                                       12                                               12                                   12
             return true
         };
         return false
@@ -176,15 +186,15 @@ module dat3::dat3_coin_manager {
         if (last.supplyAmount >= MAX_SUPPLY_AMOUNT * math64::pow(10, (coin::decimals<DAT3>() as u64))) {
             return 0u128
         };
-        let now = timestamp::now_seconds();
-        let year = ((now - gen.genesis_time) as u128) / SECONDS_OF_YEAR ;
+        let now = reconfiguration::current_epoch();
+        let year = ((now - gen.epoch) as u128) / EPOCH_OF_YEAR ;
         let m = 1u128;
         let i = 0u128;
         while (i < year) {
             m = m * 2;
             i = i + 1;
         };
-        let mint = TOTAL_EMISSION / m  ;
+        let mint = TOTAL_EMISSION * math128::pow(10, ((coin::decimals<DAT3>()) as u128)) / m  ;
         return mint
     }
     /*********************/
@@ -214,6 +224,7 @@ module dat3::dat3_coin_manager {
     #[test(dat3 = @dat3, _to = @dat3_admin, fw = @aptos_framework)]
     fun mint_test(dat3: &signer, _to: &signer, fw: &signer) acquires MintTime, GenesisInfo, HodeCap
     {
+        genesis::setup();
         timestamp::set_time_has_started_for_testing(fw);
         timestamp::update_global_time_for_test(1679899905000000);
         let addr = signer::address_of(dat3);
@@ -226,9 +237,10 @@ module dat3::dat3_coin_manager {
         debug::print(&time);
         // let time=timestamp::update_global_time_for_test(8100000);
 
-        while (i < 10) {
-            time = time + 86300000000;
+        while (i < 8780) {
+            time = time + 10000000;
             timestamp::update_global_time_for_test(time);
+            reconfiguration::reconfigure_for_test_custom();
             mint_to(dat3);
             debug::print(&coin::balance<DAT3>(@dat3));
 
@@ -238,9 +250,18 @@ module dat3::dat3_coin_manager {
         debug::print(&last.supplyAmount);
     }
 
+    #[test ]
+    fun temp_test()
+    {
+        let ten = 10u64;
+        let temp = 3u64;
+        debug::print(&((((ten as u128) * 100000) / (temp as u128)) as u64));
+    }
+
     #[test(dat3 = @dat3, to = @dat3_admin, fw = @aptos_framework)]
     fun assert_mint_num_test(dat3: &signer, to: &signer, fw: &signer) acquires MintTime, GenesisInfo
     {
+        genesis::setup();
         timestamp::set_time_has_started_for_testing(fw);
         timestamp::update_global_time_for_test(1679899905000000);
         let addr = signer::address_of(dat3);
@@ -251,24 +272,52 @@ module dat3::dat3_coin_manager {
         let i = 0;//time
         let time = 1679899905000000;
         debug::print(&time);
-        // let time=timestamp::update_global_time_for_test(8100000);
-        let ds = math128::pow(10, ((coin::decimals<DAT3>()) as u128));
-
-        while (i < 4690) {
-            time = time + 86400000000;
+        while (i < 21908) {
+            time = time + 10000000;
             timestamp::update_global_time_for_test(time);
-
+            reconfiguration::reconfigure_for_test_custom();
             let sss = assert_mint_num();
-            let last = borrow_global_mut<MintTime>(@dat3_admin);
-            last.time = timestamp::now_seconds();
-            last.supplyAmount = last.supplyAmount + ((sss * ds) as u64);
-            debug::print(&i);
-            debug::print(&sss);
+            if (sss > 0) {
+                debug::print(&i);
+                debug::print(&sss);
+            };
             i = i + 1;
         };
-        let last = borrow_global_mut<MintTime>(@dat3_admin);
-        debug::print(&last.supplyAmount);
     }
+
+    #[test(dat3 = @dat3, to = @dat3_admin, fw = @aptos_framework)]
+    fun assert_mint_time_test(dat3: &signer, to: &signer, fw: &signer) acquires MintTime, GenesisInfo
+    {
+        genesis::setup();
+        timestamp::set_time_has_started_for_testing(fw);
+        timestamp::update_global_time_for_test(1679899905000000);
+        let addr = signer::address_of(dat3);
+        let to_addr = signer::address_of(to);
+        create_account(addr);
+        create_account(to_addr);
+        init_dat3_coin(dat3);
+        let i = 0;//time
+        let time = 1679899905000000;
+        debug::print(&time);
+        while (i < 43815) {
+            time = time + 10000000;
+            timestamp::update_global_time_for_test(time);
+            reconfiguration::reconfigure_for_test_custom();
+            let sss = assert_mint_time();
+            if (sss) {
+                let num = assert_mint_num();
+                let mint_time = borrow_global_mut<MintTime>(@dat3_admin);
+
+                mint_time.epoch = reconfiguration::current_epoch();
+                mint_time.supplyAmount = mint_time.supplyAmount + (num as u64);
+                debug::print(&reconfiguration::current_epoch());
+                debug::print(&mint_time.supplyAmount);
+                debug::print(&num);
+            };
+            i = i + 1;
+        };
+    }
+
 
     #[test(dat3 = @dat3, to = @dat3_admin, fw = @aptos_framework)]
     fun dat3_stake(dat3: &signer, to: &signer, fw: &signer)
