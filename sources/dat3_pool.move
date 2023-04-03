@@ -14,7 +14,7 @@ module dat3::dat3_pool {
 
     struct RewardPool  has key { last: u64, coins: Coin<DAT3>, }
 
-    struct ActivePool  has key, store { coins: Coin<DAT3> }
+   // struct ActivePool  has key, store { coins: Coin<DAT3> }
 
     struct SignerCapabilityStore has key, store {
         sinCap: SignerCapability,
@@ -45,11 +45,11 @@ module dat3::dat3_pool {
                 coins: coin::zero<DAT3>(),
             });
         };
-        if (!exists<ActivePool>(addr)) {
-            move_to(&resourceSigner, ActivePool {
-                coins: coin::zero<DAT3>(),
-            });
-        };
+        // if (!exists<ActivePool>(addr)) {
+        //     move_to(&resourceSigner, ActivePool {
+        //         coins: coin::zero<DAT3>(),
+        //     });
+        // };
     }
 
     // deposit token
@@ -67,12 +67,12 @@ module dat3::dat3_pool {
         coin::merge(&mut r_pool.coins, your_coin);
     }
 
-    public entry fun deposit_active(account: &signer, amount: u64) acquires ActivePool
-    {
-        let your_coin = coin::withdraw<DAT3>(account, amount);
-        let r_pool = borrow_global_mut<ActivePool>(@dat3_pool);
-        coin::merge(&mut r_pool.coins, your_coin);
-    }
+    // public entry fun deposit_active(account: &signer, amount: u64) acquires ActivePool
+    // {
+    //     let your_coin = coin::withdraw<DAT3>(account, amount);
+    //     let r_pool = borrow_global_mut<ActivePool>(@dat3_pool);
+    //     coin::merge(&mut r_pool.coins, your_coin);
+    // }
 
 
     /********************/
@@ -85,11 +85,11 @@ module dat3::dat3_pool {
         coin::merge(&mut r_pool.coins, coins);
     }
 
-    public(friend) fun deposit_active_coin(coins: Coin<DAT3>) acquires ActivePool
-    {
-        let r_pool = borrow_global_mut<ActivePool>(@dat3_pool);
-        coin::merge(&mut r_pool.coins, coins);
-    }
+    // public(friend) fun deposit_active_coin(coins: Coin<DAT3>) acquires ActivePool
+    // {
+    //     let r_pool = borrow_global_mut<ActivePool>(@dat3_pool);
+    //     coin::merge(&mut r_pool.coins, coins);
+    // }
 
     //Is it safe? yes!
     public(friend) fun withdraw(to: address, amount: u64) acquires Pool

@@ -625,7 +625,6 @@ module dat3::dat3_pool_routel {
 
         let users = vector::empty<address>();
         let today_volume = 0u128;
-        // todo taday activity
         while (i < leng) {
             let (address, user) = simple_mapv1::find_index(&usr.data, i);
             if (user.taday_spend > 0) {
