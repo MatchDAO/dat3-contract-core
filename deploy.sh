@@ -11,10 +11,7 @@ sleep 5
 echo "aptos move publish --> $DAT3_PATH --bytecode-version 6 "
 echo `aptos move publish --profile $PROFILE --assume-yes --package-dir  $DAT3_PATH --bytecode-version 6 `
 echo""
-sleep 5
-echo "dat3_manager::init_dat3_coin"
-echo `aptos move run  --profile $PROFILE  --assume-yes --function-id $DAT3::dat3_manager::init_dat3_coin`
-echo""
+
 sleep 3
 echo " dat3_pool::init_pool "
 echo `aptos move run --profile $PROFILE  --assume-yes --function-id $DAT3::dat3_pool::init_pool `

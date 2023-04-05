@@ -1,20 +1,17 @@
-module dat3::dat3_pool {
+module dat3::pool {
     use std::error;
     use std::signer;
     use aptos_framework::account::{Self, SignerCapability};
     use aptos_framework::coin::{Self, Coin};
     use dat3::dat3_coin::DAT3;
-
-    friend dat3::dat3_pool_routel;
-    friend dat3::dat3_coin_manager;
+    friend dat3::routel;
+    friend dat3::interface;
 
     struct Pool has key {
         coins: Coin<0x1::aptos_coin::AptosCoin>,
     }
 
     struct RewardPool  has key { last: u64, coins: Coin<DAT3>, }
-
-   // struct ActivePool  has key, store { coins: Coin<DAT3> }
 
     struct SignerCapabilityStore has key, store {
         sinCap: SignerCapability,
@@ -45,11 +42,6 @@ module dat3::dat3_pool {
                 coins: coin::zero<DAT3>(),
             });
         };
-        // if (!exists<ActivePool>(addr)) {
-        //     move_to(&resourceSigner, ActivePool {
-        //         coins: coin::zero<DAT3>(),
-        //     });
-        // };
     }
 
     // deposit token
@@ -67,29 +59,24 @@ module dat3::dat3_pool {
         coin::merge(&mut r_pool.coins, your_coin);
     }
 
-    // public entry fun deposit_active(account: &signer, amount: u64) acquires ActivePool
-    // {
-    //     let your_coin = coin::withdraw<DAT3>(account, amount);
-    //     let r_pool = borrow_global_mut<ActivePool>(@dat3_pool);
-    //     coin::merge(&mut r_pool.coins, your_coin);
-    // }
 
-
-    /********************/
-    /* FRIEND FUNCTIONS */
-    /********************/
-    public(friend) fun deposit_reward_coin(coins: Coin<DAT3>) acquires RewardPool
+    public fun deposit_reward_coin(coins: Coin<DAT3>) acquires RewardPool
     {
         let r_pool = borrow_global_mut<RewardPool>(@dat3_pool);
         r_pool.last = coin::value<DAT3>(&coins);
         coin::merge(&mut r_pool.coins, coins);
     }
 
-    // public(friend) fun deposit_active_coin(coins: Coin<DAT3>) acquires ActivePool
-    // {
-    //     let r_pool = borrow_global_mut<ActivePool>(@dat3_pool);
-    //     coin::merge(&mut r_pool.coins, coins);
-    // }
+    #[view]
+    public fun withdraw_reward_last(): u64 acquires RewardPool
+    {
+        borrow_global<RewardPool>(@dat3_pool).last
+    }
+
+    /********************/
+    /* FRIEND FUNCTIONS */
+    /********************/
+
 
     //Is it safe? yes!
     public(friend) fun withdraw(to: address, amount: u64) acquires Pool
@@ -103,10 +90,5 @@ module dat3::dat3_pool {
     {
         let r_pool = borrow_global_mut<RewardPool>(@dat3_pool);
         coin::deposit<DAT3>(to, coin::extract(&mut r_pool.coins, amount));
-    }
-
-    public(friend) fun withdraw_reward_last(): u64 acquires RewardPool
-    {
-        borrow_global<RewardPool>(@dat3_pool).last
     }
 }

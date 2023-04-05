@@ -1,4 +1,4 @@
-module dat3::dat3_pool_routel {
+module dat3::routel {
     use std::error;
     use std::signer;
     use std::string::{Self, String};
@@ -9,10 +9,10 @@ module dat3::dat3_pool_routel {
 
     use aptos_token::token;
     use dat3::dat3_coin::DAT3;
-    use dat3::dat3_pool;
+    use dat3::pool;
     use dat3::simple_mapv1::{Self, SimpleMapV1};
 
-    friend dat3::dat3_coin_manager;
+    friend dat3::interface;
     struct UsersReward has key, store {
         data: SimpleMapV1<address, Reward>,
     }
@@ -143,7 +143,7 @@ module dat3::dat3_pool_routel {
             coin::register<DAT3>(account)
         };
         let user = simple_mapv1::borrow_mut(&mut member_hoder.member, &user_address);
-        dat3_pool::deposit(account, amount);
+        pool::deposit(account, amount);
         user.amount = user.amount + amount;
     }
 
@@ -161,7 +161,7 @@ module dat3::dat3_pool_routel {
         let user_amount = auser.amount;
         assert!(user_amount >= amount, error::out_of_range(EINSUFFICIENT_BALANCE));
         auser.amount = user_amount - amount;
-        dat3_pool::withdraw(user_address, amount);
+        pool::withdraw(user_address, amount);
     }
 
     //claim_reward
@@ -176,7 +176,7 @@ module dat3::dat3_pool_routel {
                 coin::register<DAT3>(account)
             };
             if (your.reward > 0) {
-                dat3_pool::withdraw_reward(user_address, your.reward);
+                pool::withdraw_reward(user_address, your.reward);
                 your.reward_claim = your.reward_claim + your.reward;
                 your.reward = 0;
             };
@@ -202,7 +202,7 @@ module dat3::dat3_pool_routel {
             0
         );
         if (token::balance_of(addr, token_id) > 0 && fid_r.amount > 0) {
-            dat3_pool::withdraw(addr, fid_r.amount);
+            pool::withdraw(addr, fid_r.amount);
             fid_r.claim = fid_r.claim + fid_r.amount;
             fid_r.amount = 0;
         };
@@ -616,8 +616,9 @@ module dat3::dat3_pool_routel {
     /********************/
     /* FRIEND FUNCTIONS */
     /********************/
-    public(friend) fun to_reward() acquires UsersReward
+    public(friend) fun to_reward(admin: &signer) acquires UsersReward
     {
+        assert!(signer::address_of(admin) == @dat3_admin, error::permission_denied(PERMISSION_DENIED));
         let usr = borrow_global_mut<UsersReward>(@dat3_routel);
         //index
         let i = 0u64;
@@ -635,7 +636,7 @@ module dat3::dat3_pool_routel {
         };
         leng = vector::length(&users);
         i = 0;
-        let coins = dat3_pool::withdraw_reward_last();
+        let coins = pool::withdraw_reward_last();
         if (leng > 0) {
             let now = timestamp::now_seconds();
             while (i < leng) {
