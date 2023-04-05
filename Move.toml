@@ -1,19 +1,14 @@
 [package]
-name = 'DAT3CoinManager'
-version = '0.0.8'
-upgrade_policy = "compatible"
+name = 'DAT3Pool'
+version = '1.0.0'
 [dependencies]
-# # https://github.com/aptos-labs/aptos-core.git
-AptosFramework = { local = "../../aptos-core-1.0.4/aptos-move/framework/aptos-framework" }
-AptosToken = { local = "../../aptos-core-1.0.4/aptos-move/framework/aptos-token" }
-
+DAT3Coin ={local ="../dat3-tokenomics/dat3_coin"}
 [addresses]
 std = "0x1"
-aptos_std = "0x1"
 aptos_framework = "0x1"
-dat3 = "0x3e128ae33009e484f22b27fb5a043b8f056d0a944e6df221dd3f1c0041146cbf"
-dat3_admin = "0xb5927b2f0775a04952cbf3ee5d7c3724d6483b1460c2a873ea2d90ca512ded7"
-dat3_pool = "0x3b85660140100f7156843c89e03a3ae247db087e4726107b2ff9eaf4a01d43d1"
-dat3_routel = "0x6c162546566f4c0eb5859df209eb10ab5a745b75d1e92a3192900977cf193efa"
-dat3_stake = "0x960201d98ebf762e58197294d932a8a3b43efd272124a7554374b6ec03e97edd"
-dat3_nft = "0x363fbed1da9a7ab9c662e57219d583c5dac81a84f545296c83f6c3d37a7e70fc"
+dat3 = "0xba6f578786f2ca745814d72b6240781680d85c1204f2253cbf5ad07ec3ee52a0"
+dat3_admin = "0xfb801e545332e5811534e3bc28a033d0d31a833c14f1df8518b5cdd07bd36dab"
+dat3_pool = "0x6b4960daf7597cd8a67806311641bd31219c119aa97ce1eedd84f19f750c8898"
+dat3_routel = "0x1ac8479dc744b1e77e7769d3132d28a735a2db17cc0e66179ad561131ad1e39d"
+dat3_stake = "0xe943b9784a6d623624772cf5dc6303e16400de16413828430bd550fd7eb23172"
+dat3_nft = "0x124d69858b8003fdd007b3afc303c9cd4e3b96c71eeccc3a7ea2b0b87976f01d"
