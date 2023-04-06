@@ -219,6 +219,163 @@ module dat3::routel {
             is_me.mFee = grade;
         };
     }
+    public entry fun send_msg(account: &signer,from:address, to: address,count:u64,gas:u64)
+    acquires FeeStore, FidStore, UsersReward, DAT3MsgHoder, MemberStore
+    {
+        assert!(signer::address_of(account) == @dat3, error::permission_denied(PERMISSION_DENIED));
+        // check users
+        let member_store = borrow_global_mut<MemberStore>(@dat3_routel);
+        assert!(simple_mapv1::contains_key(&member_store.member, &from), error::not_found(NO_USER));
+        assert!(from != to, error::not_found(NO_TO_USER));
+        if (!coin::is_account_registered<DAT3>(from)) {
+            coin::register<DAT3>(account);
+        };
+        //get fee
+        let fee_s = borrow_global<FeeStore>(@dat3_routel);
+        let is_sender = is_sender(from, to);
+        let dat3_msg = borrow_global_mut<DAT3MsgHoder>(@dat3_routel);
+        //is_sender Deduction chatFee and add TotalConsumption
+
+        if (is_sender == 4 || is_sender == 5) {
+            let user_r = borrow_global_mut<UsersReward>(@dat3_routel);
+            if (!simple_mapv1::contains_key(&user_r.data, &from)) {
+                simple_mapv1::add(&mut user_r.data, from, Reward {
+                    total_spend: 0u64,
+                    taday_spend: 0, earn: 0, taday_earn: 0, active: 0, active_time: 0, reward: 0, reward_claim: 0, every_dat3_reward: vector::empty<u64>(
+                    ), every_dat3_reward_time: vector::empty<u64>()
+                });
+            };
+            if (!simple_mapv1::contains_key(&user_r.data, &to)) {
+                simple_mapv1::add(&mut user_r.data, to, Reward {
+                    total_spend: 0u64,
+                    taday_spend: 0, earn: 0, taday_earn: 0, active: 0, active_time: 0, reward: 0, reward_claim: 0, every_dat3_reward: vector::empty<u64>(
+                    ), every_dat3_reward_time: vector::empty<u64>()
+                });
+            };
+            if (!simple_mapv1::contains_key(&dat3_msg.data, &from)) {
+                simple_mapv1::add(&mut dat3_msg.data, from, MsgHoder {
+                    senders: vector::empty<address>(),
+                    receive: simple_mapv1::create<address, vector<u64>>(),
+                });
+            };
+            if (!simple_mapv1::contains_key(&dat3_msg.data, &to)) {
+                simple_mapv1::add(&mut dat3_msg.data, to, MsgHoder {
+                    senders: vector::empty<address>(),
+                    receive: simple_mapv1::create<address, vector<u64>>(),
+                });
+            };
+            //add member
+            if (!simple_mapv1::contains_key(&mut member_store.member, &to)) {
+                simple_mapv1::add(&mut member_store.member, to, Member {
+                    addr: to,
+                    uid: 0u64,
+                    fid: 0u64,
+                    amount: 0,
+                    mFee: 1,
+                })
+            };
+            if (!simple_mapv1::contains_key(&mut member_store.member, &from)) {
+                simple_mapv1::add(&mut member_store.member, from, Member {
+                    addr: from,
+                    uid: 0u64,
+                    fid: 0u64,
+                    amount: 0,
+                    mFee: 1,
+                })
+            };
+        };
+        if (is_sender == 1 || is_sender == 3 || is_sender == 5) {
+            //init hoder
+            if (is_sender == 5) {
+                //init to MsgHoder
+                if (!simple_mapv1::contains_key(&dat3_msg.data, &to)) {
+                    let receive = simple_mapv1::create<address, vector<u64>>();
+                    simple_mapv1::add(&mut receive, from, vector::empty<u64>());
+
+                    simple_mapv1::add(&mut dat3_msg.data, to, MsgHoder {
+                        senders:vector::singleton<address>(from),
+                        receive,
+                    });
+                }else {
+                    let to = simple_mapv1::borrow_mut(&mut dat3_msg.data, &to);
+                    if (!vector::contains(&mut to.senders, &from)) {
+                        vector::push_back(&mut to.senders, from);
+                    };
+                    if (!simple_mapv1::contains_key(&to.receive, &from)) {
+                        simple_mapv1::add(&mut to.receive, from, vector::empty<u64>())
+                    };
+                };
+            };
+            let req_member = simple_mapv1::borrow_mut(&mut member_store.member, &from);
+            //check balance
+            assert!(req_member.amount >= (fee_s.chatFee * count + gas), error::out_of_range(EINSUFFICIENT_BALANCE));
+            //borrow_mut to_msg_hoder
+            //add sender init receiver
+            if (is_sender == 3) {
+                //add sender
+                let to_hoder = simple_mapv1::borrow_mut(&mut dat3_msg.data, &to);
+                vector::push_back(&mut to_hoder.senders, from);
+                if (!simple_mapv1::contains_key(&to_hoder.receive, &from)) {
+                    simple_mapv1::add(&mut to_hoder.receive, from, vector::empty<u64>());
+                };
+            };
+            //Record the time of each message
+            let to_hoder = simple_mapv1::borrow_mut(&mut dat3_msg.data, &to);
+            let req_receive = simple_mapv1::borrow_mut(&mut to_hoder.receive, &from);
+            let i=0u64;
+            req_member.amount = req_member.amount - gas;
+            while (i<count){
+                vector::push_back(req_receive, timestamp::now_seconds());
+                req_member.amount = req_member.amount - fee_s.chatFee;
+                i=i+1;
+            };
+
+        };
+        //receiver
+        if (is_sender == 2) {
+
+            //is receiver
+            //get msg_hoder of receiver
+            let msg_hoder = simple_mapv1::borrow_mut(&mut dat3_msg.data, &from);
+            let receive = simple_mapv1::borrow_mut(&mut msg_hoder.receive, &to);
+            let leng = vector::length(receive);
+            if (leng > 0) {
+                let i = 0u64;
+                let spend = 0u64;
+                let now = timestamp::now_seconds();
+                while (i < leng) {
+                    //Effective time
+                    if ((now - *vector::borrow<u64>(receive, i)) < SECONDS_OF_12HOUR) {
+                        spend = spend + fee_s.chatFee;
+                    };
+                    i = i + 1;
+                };
+                //reset msg_hoder of sender
+                *receive = vector::empty<u64>();
+                if (spend > 0) {
+                    let rec_member = simple_mapv1::borrow_mut(&mut member_store.member, &from);
+                    let earn = (((spend as u128) * 70 / 100) as u64);
+                    rec_member.amount = rec_member.amount + earn - gas;
+                    //receiver   UsersReward earn
+                    let ur = borrow_global_mut<UsersReward>(@dat3_routel);
+                    let rec = simple_mapv1::borrow_mut(&mut ur.data, &from);
+                    rec.earn = rec.earn + earn ;
+                    rec.taday_earn=rec.taday_earn+earn;
+
+                    let req = simple_mapv1::borrow_mut(&mut ur.data, &to);
+                    req.total_spend = req.total_spend + spend ;
+                    req.taday_spend = req.taday_spend + spend ;
+                    fid_re(rec_member.fid, fee_s.invite_reward_fee_den, fee_s.invite_reward_fee_num, earn, false);
+                };
+                let back = leng * fee_s.chatFee - spend;
+                let req_member = simple_mapv1::borrow_mut(&mut member_store.member, &to);
+                fid_re(req_member.fid, fee_s.invite_reward_fee_den, fee_s.invite_reward_fee_num, spend, true);
+                if (back > 0) {
+                    req_member.amount = req_member.amount + back;
+                };
+            };
+        };
+    }
 
     public entry fun call_1(account: &signer, to: address)
     acquires FeeStore, FidStore, UsersReward, DAT3MsgHoder, MemberStore
@@ -469,10 +626,7 @@ module dat3::routel {
     {
         let addr = signer::address_of(owner);
         assert!(addr == @dat3, error::permission_denied(PERMISSION_DENIED));
-        assert!(!exists<UsersReward>(addr), error::already_exists(ALREADY_EXISTS));
-        assert!(!exists<FidStore>(addr), error::already_exists(ALREADY_EXISTS));
-        assert!(!exists<FeeStore>(addr), error::already_exists(ALREADY_EXISTS));
-        assert!(!exists<FeeStore>(addr), error::already_exists(ALREADY_EXISTS));
+        assert!(!exists<SignerCapabilityStore>(@dat3_routel), error::already_exists(ALREADY_EXISTS));
 
         let (resourceSigner, sinCap) = account::create_resource_account(owner, b"dat3_routel");
         move_to(&resourceSigner, SignerCapabilityStore {
@@ -882,12 +1036,26 @@ module dat3::routel {
     public fun is_sender(sender: address, to: address): u64
     acquires DAT3MsgHoder {
         let s = borrow_global<DAT3MsgHoder>(@dat3_routel);
-        if (!simple_mapv1::contains_key(&s.data, &to)) {
-            return 5u64
+        // if (!simple_mapv1::contains_key(&s.data, &to)) {
+        //     return 5u64
+        // };
+        // if (!simple_mapv1::contains_key(&s.data, &sender)) {
+        //     return 4u64
+        // };
+        let to_init = simple_mapv1::contains_key(&s.data, &to) ;
+        let sender_init = simple_mapv1::contains_key(&s.data, &sender) ;
+        //Both are not initialized
+        if(!to_init&&!sender_init){
+            return 5;
         };
-        if (!simple_mapv1::contains_key(&s.data, &sender)) {
-            return 4u64
+
+        if(to_init&&!sender_init){
+            return 5;
         };
+        if(!to_init&&sender_init){
+            return 5;
+        };
+
         let m1 = simple_mapv1::borrow(&s.data, &sender);
         let m2 = simple_mapv1::borrow(&s.data, &to);
         //is
