@@ -481,8 +481,8 @@ module dat3::routel {
         move_to(&resourceSigner, UsersReward { data: simple_mapv1::create<address, Reward>() });
 
         move_to(&resourceSigner, FidStore {
-            collection: string::utf8(b"DAT3 Invitation Pass alpha"),
-            token: string::utf8(b"DAT3 Invitation Pass alpha#"),
+            collection: string::utf8(b"DAT3 invitation NFT"),
+            token: string::utf8(b"DAT3 invitation NFT#"),
             data: simple_mapv1::create<u64, FidReward>()
         });
 
@@ -664,7 +664,7 @@ module dat3::routel {
     ) acquires FidStore, UsersReward, MemberStore, DAT3MsgHoder
     {
         //cheak_fid
-        assert!(fid >= 0 && fid <= 5000 || fid == 999999999999999, error::invalid_argument(INVALID_ID));
+        assert!(fid > 0 && fid <= 5040 , error::invalid_argument(INVALID_ID));
         let fids_tore = borrow_global_mut<FidStore>(@dat3_routel);
 
         //init UsersReward
@@ -710,7 +710,7 @@ module dat3::routel {
             })
         }else {
             let user = simple_mapv1::borrow_mut(&mut member_hoder.member, &user_address);
-            if (user.fid == 0 && fid > 0 && fid <= 5000) {
+            if (user.fid == 0 && fid > 0 && fid <= 5040) {
                 user.fid = fid;
             };
             if (user.uid == 0 && uid > 0) {
