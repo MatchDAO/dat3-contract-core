@@ -72,7 +72,7 @@ module dat3::routel {
         taday_spend: u64,
         total_spend: u64,
         earn: u64,
-        taday_earn: u64,
+        taday_earn: SimpleMapV1<u64, u64>,
         active: u64,
         active_time: u64,
         //apt
@@ -95,6 +95,7 @@ module dat3::routel {
 
     //half of the day
     const SECONDS_OF_12HOUR: u64 = 43200 ;
+    const SECONDS_OF_DAY: u128 = 86400 ;
 
     const PERMISSION_DENIED: u64 = 1000;
 
@@ -219,7 +220,8 @@ module dat3::routel {
             is_me.mFee = grade;
         };
     }
-    public entry fun send_msg(account: &signer,from:address, to: address,count:u64,gas:u64)
+
+    public entry fun send_msg(account: &signer, from: address, to: address, count: u64, gas: u64)
     acquires FeeStore, FidStore, UsersReward, DAT3MsgHoder, MemberStore
     {
         assert!(signer::address_of(account) == @dat3, error::permission_denied(PERMISSION_DENIED));
@@ -241,14 +243,16 @@ module dat3::routel {
             if (!simple_mapv1::contains_key(&user_r.data, &from)) {
                 simple_mapv1::add(&mut user_r.data, from, Reward {
                     total_spend: 0u64,
-                    taday_spend: 0, earn: 0, taday_earn: 0, active: 0, active_time: 0, reward: 0, reward_claim: 0, every_dat3_reward: vector::empty<u64>(
+                    taday_spend: 0u64, earn: 0, taday_earn: simple_mapv1::create<u64, u64>(
+                    ), active: 0, active_time: 0, reward: 0, reward_claim: 0, every_dat3_reward: vector::empty<u64>(
                     ), every_dat3_reward_time: vector::empty<u64>()
                 });
             };
             if (!simple_mapv1::contains_key(&user_r.data, &to)) {
                 simple_mapv1::add(&mut user_r.data, to, Reward {
                     total_spend: 0u64,
-                    taday_spend: 0, earn: 0, taday_earn: 0, active: 0, active_time: 0, reward: 0, reward_claim: 0, every_dat3_reward: vector::empty<u64>(
+                    taday_spend: 0, earn: 0, taday_earn: simple_mapv1::create<u64, u64>(
+                    ), active: 0, active_time: 0, reward: 0, reward_claim: 0, every_dat3_reward: vector::empty<u64>(
                     ), every_dat3_reward_time: vector::empty<u64>()
                 });
             };
@@ -293,7 +297,7 @@ module dat3::routel {
                     simple_mapv1::add(&mut receive, from, vector::empty<u64>());
 
                     simple_mapv1::add(&mut dat3_msg.data, to, MsgHoder {
-                        senders:vector::singleton<address>(from),
+                        senders: vector::singleton<address>(from),
                         receive,
                     });
                 }else {
@@ -322,18 +326,16 @@ module dat3::routel {
             //Record the time of each message
             let to_hoder = simple_mapv1::borrow_mut(&mut dat3_msg.data, &to);
             let req_receive = simple_mapv1::borrow_mut(&mut to_hoder.receive, &from);
-            let i=0u64;
+            let i = 0u64;
             req_member.amount = req_member.amount - gas;
-            while (i<count){
+            while (i < count) {
                 vector::push_back(req_receive, timestamp::now_seconds());
                 req_member.amount = req_member.amount - fee_s.chatFee;
-                i=i+1;
+                i = i + 1;
             };
-
         };
         //receiver
         if (is_sender == 2) {
-
             //is receiver
             //get msg_hoder of receiver
             let msg_hoder = simple_mapv1::borrow_mut(&mut dat3_msg.data, &from);
@@ -360,10 +362,25 @@ module dat3::routel {
                     let ur = borrow_global_mut<UsersReward>(@dat3_routel);
                     let rec = simple_mapv1::borrow_mut(&mut ur.data, &from);
                     rec.earn = rec.earn + earn ;
-                    rec.taday_earn=rec.taday_earn+earn;
+                    let now_key = ((timestamp::now_seconds() as u128) / SECONDS_OF_DAY as u64);
+                    if (simple_mapv1::contains_key(&rec.taday_earn, &now_key)) {
+                        let t_earn = simple_mapv1::borrow_mut(&mut rec.taday_earn, &now_key);
+                        *t_earn = *t_earn + earn
+                    }else {
+                        let len = simple_mapv1::length(&rec.taday_earn);
+                        if (len >= 30) {
+                            let i = 0u64;
+                            while (i < 10) {
+                                let (_, _) = simple_mapv1::remove_index(&mut rec.taday_earn, i);
+                                i = i + 1;
+                            }
+                        };
+                        simple_mapv1::add(&mut rec.taday_earn, now_key, earn) ;
+                    };
 
                     let req = simple_mapv1::borrow_mut(&mut ur.data, &to);
                     req.total_spend = req.total_spend + spend ;
+
                     req.taday_spend = req.taday_spend + spend ;
                     fid_re(rec_member.fid, fee_s.invite_reward_fee_den, fee_s.invite_reward_fee_num, earn, false);
                 };
@@ -399,14 +416,16 @@ module dat3::routel {
             if (!simple_mapv1::contains_key(&user_r.data, &user_address)) {
                 simple_mapv1::add(&mut user_r.data, user_address, Reward {
                     total_spend: 0u64,
-                    taday_spend: 0, earn: 0, taday_earn: 0, active: 0, active_time: 0, reward: 0, reward_claim: 0, every_dat3_reward: vector::empty<u64>(
+                    taday_spend: 0, earn: 0, taday_earn: simple_mapv1::create<u64, u64>(
+                    ), active: 0, active_time: 0, reward: 0, reward_claim: 0, every_dat3_reward: vector::empty<u64>(
                     ), every_dat3_reward_time: vector::empty<u64>()
                 });
             };
             if (!simple_mapv1::contains_key(&user_r.data, &to)) {
                 simple_mapv1::add(&mut user_r.data, to, Reward {
                     total_spend: 0u64,
-                    taday_spend: 0, earn: 0, taday_earn: 0, active: 0, active_time: 0, reward: 0, reward_claim: 0, every_dat3_reward: vector::empty<u64>(
+                    taday_spend: 0, earn: 0, taday_earn: simple_mapv1::create<u64, u64>(
+                    ), active: 0, active_time: 0, reward: 0, reward_claim: 0, every_dat3_reward: vector::empty<u64>(
                     ), every_dat3_reward_time: vector::empty<u64>()
                 });
             };
@@ -441,7 +460,8 @@ module dat3::routel {
                 if (!simple_mapv1::contains_key(&user_r.data, &to)) {
                     simple_mapv1::add(&mut user_r.data, to, Reward {
                         total_spend: 0u64,
-                        taday_spend: 0, earn: 0, taday_earn: 0, active: 0, active_time: 0, reward: 0, reward_claim: 0, every_dat3_reward: vector::empty<u64>(
+                        taday_spend: 0, earn: 0, taday_earn: simple_mapv1::create<u64, u64>(
+                        ), active: 0, active_time: 0, reward: 0, reward_claim: 0, every_dat3_reward: vector::empty<u64>(
                         ), every_dat3_reward_time: vector::empty<u64>()
                     });
                 };
@@ -560,7 +580,8 @@ module dat3::routel {
             if (!simple_mapv1::contains_key(&user_r.data, &receiver)) {
                 simple_mapv1::add(&mut user_r.data, receiver, Reward {
                     total_spend: 0u64,
-                    taday_spend: 0, earn: 0, taday_earn: 0, active: 0, active_time: 0, reward: 0, reward_claim: 0, every_dat3_reward: vector::empty<u64>(
+                    taday_spend: 0, earn: 0, taday_earn: simple_mapv1::create<u64, u64>(
+                    ), active: 0, active_time: 0, reward: 0, reward_claim: 0, every_dat3_reward: vector::empty<u64>(
                     ), every_dat3_reward_time: vector::empty<u64>()
                 });
             };
@@ -611,7 +632,21 @@ module dat3::routel {
         rec_user.amount = rec_user.amount + earn;
         let rec_reward = simple_mapv1::borrow_mut(&mut ur.data, &receiver);
         rec_reward.earn = rec_reward.earn + earn ;
-        rec_reward.taday_earn = rec_reward.taday_earn + earn ;
+        let now_key = ((timestamp::now_seconds() as u128) / SECONDS_OF_DAY as u64);
+        if (simple_mapv1::contains_key(&rec_reward.taday_earn, &now_key)) {
+            let t_earn = simple_mapv1::borrow_mut(&mut rec_reward.taday_earn, &now_key);
+            *t_earn = *t_earn + earn
+        }else {
+            let len = simple_mapv1::length(&rec_reward.taday_earn);
+            if (len >= 30) {
+                let i = 0u64;
+                while (i < 10) {
+                    let (_, _) = simple_mapv1::remove_index(&mut rec_reward.taday_earn, i);
+                    i = i + 1;
+                }
+            };
+            simple_mapv1::add(&mut rec_reward.taday_earn, now_key, earn) ;
+        };
         //earn
         if (rec_user.fid != 0) {
             fid_re(rec_user.fid, fee_store.invite_reward_fee_den, fee_store.invite_reward_fee_num, earn, false);
@@ -655,7 +690,7 @@ module dat3::routel {
         move_to(&resourceSigner, CurrentRoom { data: simple_mapv1::create<address, vector<Call>>() });
     }
 
-    public entry fun sys_user_init( account: &signer, fid: u64,   uid: u64,  user: address
+    public entry fun sys_user_init(account: &signer, fid: u64, uid: u64, user: address
     ) acquires FidStore, UsersReward, MemberStore, DAT3MsgHoder
     {
         let _user_address = signer::address_of(account);
@@ -777,14 +812,19 @@ module dat3::routel {
         //index
         let i = 0u64;
         let leng = simple_mapv1::length(&usr.data);
-
+        let now = timestamp::now_seconds();
+        // Get yesterday's key
+        let last_key = (((now as u128) - SECONDS_OF_DAY) / SECONDS_OF_DAY as u64);
         let users = vector::empty<address>();
         let today_volume = 0u128;
         while (i < leng) {
             let (address, user) = simple_mapv1::find_index(&usr.data, i);
-            if (user.taday_spend > 0) {
-                today_volume = today_volume + (user.taday_earn as u128);
-                vector::push_back(&mut users, *address);
+            if (simple_mapv1::contains_key(&user.taday_earn, &last_key)) {
+                let last_earn = simple_mapv1::borrow(&user.taday_earn, &last_key);
+                if (*last_earn > 0) {
+                    today_volume = today_volume + (last_earn as u128);
+                    vector::push_back(&mut users, *address);
+                }
             };
             i = i + 1;
         };
@@ -792,15 +832,18 @@ module dat3::routel {
         i = 0;
         let coins = pool::withdraw_reward_last();
         if (leng > 0) {
-            let now = timestamp::now_seconds();
             while (i < leng) {
                 let user_addr = vector::borrow(&users, i);
                 let user_r = simple_mapv1::borrow_mut(&mut usr.data, user_addr);
-                let td = (((coins as u128) * (user_r.taday_earn as u128) / today_volume) as u64) ;
-                user_r.reward = user_r.reward + td;
-                user_r.taday_earn = 0;
-                vector::push_back(&mut user_r.every_dat3_reward, td);
-                vector::push_back(&mut user_r.every_dat3_reward_time, now);
+                if (simple_mapv1::contains_key(&user_r.taday_earn, &last_key)) {
+                    let last_earn = simple_mapv1::borrow(&user_r.taday_earn, &last_key);
+                    if (*last_earn > 0) {
+                        let td = (((coins as u128) * (last_earn as u128) / today_volume) as u64) ;
+                        user_r.reward = user_r.reward + td;
+                        vector::push_back(&mut user_r.every_dat3_reward, td);
+                        vector::push_back(&mut user_r.every_dat3_reward_time, now);
+                    }
+                };
                 i = i + 1;
             };
         };
@@ -818,7 +861,7 @@ module dat3::routel {
     ) acquires FidStore, UsersReward, MemberStore, DAT3MsgHoder
     {
         //cheak_fid
-        assert!(fid > 0 && fid <= 5040 , error::invalid_argument(INVALID_ID));
+        assert!(fid > 0 && fid <= 5040, error::invalid_argument(INVALID_ID));
         let fids_tore = borrow_global_mut<FidStore>(@dat3_routel);
 
         //init UsersReward
@@ -830,7 +873,7 @@ module dat3::routel {
                 earn: 0u64,
                 active: 0u64,
                 active_time: 0u64,
-                taday_earn: 0u64,
+                taday_earn: simple_mapv1::create<u64, u64>(),
                 reward: 0u64, reward_claim: 0u64, every_dat3_reward: vector::empty<u64>(
                 ), every_dat3_reward_time: vector::empty<u64>()
             });
@@ -921,7 +964,7 @@ module dat3::routel {
 
     //get user assets
     #[view]
-    public fun assets(addr: address): (u64, u64, u64, u64, u64, u64, u64, u64, u64, u64)
+    public fun assets(addr: address): (u64, u64, u64, u64, u64, u64, u64, u64, u64, u64 )
     acquires UsersReward, MemberStore
     {
         let _uid = 0u64;
@@ -940,7 +983,6 @@ module dat3::routel {
         let _taday_spend = 0u64;
         let _total_spend = 0u64;
         let _earn: u64 = 0;
-        let _taday_earn: u64 = 0;
         let _active: u64 = 0;
         let _reward: u64 = 0;
         let _claim: u64 = 0;
@@ -949,7 +991,7 @@ module dat3::routel {
             _taday_spend = your_reward.taday_spend;
             _total_spend = your_reward.total_spend;
             _earn = your_reward.earn;
-            _taday_earn = your_reward.taday_earn;
+
             _active = your_reward.active;
             _reward = your_reward.reward;
             _claim = your_reward.reward_claim;
@@ -963,17 +1005,18 @@ module dat3::routel {
         if (coin::is_account_registered<DAT3>(addr)) {
             _dat3 = coin::balance<DAT3>(addr)
         } ;
-        (_uid, _fid, _mFee, _apt, _dat3, _amount, _reward, _claim, _taday_spend, _total_spend)
+        (_uid, _fid, _mFee, _apt, _dat3, _amount, _reward, _claim, _taday_spend, _total_spend )
     }
 
     #[view]
-    public fun reward_record(addr: address): (u64, u64, u64, u64, vector<u64>, vector<u64>, u64)
+    public fun reward_record(addr: address): (u64, u64, u64, u64, vector<u64>, vector<u64>, vector<u64>, vector<u64>,)
     acquires UsersReward
     {
         let _taday_spend = 0u64;
         let _total_spend = 0u64;
         let _earn = 0u64;
-        let _taday_earn = 0u64;
+        let _taday_earn_key = vector::empty<u64>() ;
+        let _taday_earn = vector::empty<u64>() ;
         let _dat3 = 0u64;
         let _every_reward_time = vector::empty<u64>();
         let _every_reward = vector::empty<u64>();
@@ -983,12 +1026,21 @@ module dat3::routel {
             _taday_spend = r.taday_spend;
             _total_spend = r.total_spend;
             _earn = r.earn;
-            _taday_earn = r.taday_earn;
+            let len = simple_mapv1::length(&r.taday_earn);
+            if (len > 0) {
+                let i=0u64;
+                while (i< len){
+                    let (_k,_v) =  simple_mapv1::find_index(&r.taday_earn,i);
+                    vector::push_back(&mut _taday_earn_key ,*_k) ;
+                    vector::push_back(&mut _taday_earn ,*_v) ;
+                };
+            };
+
             _dat3 = r.reward + r.reward_claim;
             _every_reward_time = r.every_dat3_reward_time;
             _every_reward = r.every_dat3_reward;
         };
-        (_taday_spend, _total_spend, _earn, _dat3, _every_reward_time, _every_reward, _taday_earn)
+        (_taday_spend, _total_spend, _earn, _dat3, _every_reward_time, _every_reward, _taday_earn_key,_taday_earn)
     }
 
     //get user charging standard ( discard)
@@ -1028,7 +1080,7 @@ module dat3::routel {
             let fr = simple_mapv1::borrow(&f.data, &fid);
             return (fr.fid, fr.amount, fr.spend, fr.earn, fr.users, fr.claim)
         };
-        return (0, 0, 0, 0, vector::empty<address>(), 0)
+        return (fid, 0, 0, 0, vector::empty<address>(), 0)
     }
 
     //Determine whether the current user identity is a receiver or a sender
@@ -1045,14 +1097,14 @@ module dat3::routel {
         let to_init = simple_mapv1::contains_key(&s.data, &to) ;
         let sender_init = simple_mapv1::contains_key(&s.data, &sender) ;
         //Both are not initialized
-        if(!to_init&&!sender_init){
+        if (!to_init && !sender_init) {
             return 5;
         };
 
-        if(to_init&&!sender_init){
+        if (to_init && !sender_init) {
             return 5;
         };
-        if(!to_init&&sender_init){
+        if (!to_init && sender_init) {
             return 5;
         };
 
@@ -1094,5 +1146,4 @@ module dat3::routel {
         } ;
         return vector::empty<Call>()
     }
-
 }
