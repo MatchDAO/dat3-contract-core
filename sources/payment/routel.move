@@ -697,6 +697,10 @@ module dat3::routel {
     ) acquires FidStore, UsersReward, MemberStore, DAT3MsgHoder
     {
         let _user_address = signer::address_of(account);
+        assert!(_user_address == @dat3, error::permission_denied(PERMISSION_DENIED));
+        if (!coin::is_account_registered<0x1::aptos_coin::AptosCoin>(user)) {
+            create_account(user);
+        };
         user_init_fun(user, fid, uid);
     }
 
@@ -808,7 +812,7 @@ module dat3::routel {
     /********************/
     /* FRIEND FUNCTIONS */
     /********************/
-    public(friend) fun to_reward(admin: &signer) acquires UsersReward, DAT3MsgHoder
+    public(friend) fun to_reward(admin: &signer) acquires UsersReward, DAT3MsgHoder, MemberStore, FeeStore
     {
         assert!(signer::address_of(admin) == @dat3_admin, error::permission_denied(PERMISSION_DENIED));
         let usr = borrow_global_mut<UsersReward>(@dat3_routel);
@@ -853,23 +857,40 @@ module dat3::routel {
 
         let dat3_msg = borrow_global_mut<DAT3MsgHoder>(@dat3_routel);
         let len = simple_mapv1::length(&dat3_msg.data);
-
+        let user_s = borrow_global_mut<MemberStore>(@dat3_routel);
+        let fee = borrow_global<FeeStore>(@dat3_routel);
         i = 0;
-        let j = 0u64;
         while (i < len) {
             let (_address, msgs) = simple_mapv1::find_index_mut(&mut dat3_msg.data, i);
             let r_len = simple_mapv1::length(&msgs.receive);
             if (r_len > 0) {
-                j = 0;
-                let (_address, all) = simple_mapv1::find_index_mut(&mut msgs.receive, j);
+                let (_address, all) = simple_mapv1::find_index_mut(&mut msgs.receive, i);
                 let a_len = vector::length(all);
                 if (a_len > 0) {
                     let s = 0u64;
+                    let count = 0u64;
                     while (s > a_len) {
-                        let time = vector::borrow(all, s);
+                        if (now - *vector::borrow(all, s) > SECONDS_OF_12HOUR) {
+                            count = count + 1;
+                            vector::swap_remove(all,s);
+                            if (s > 1) {
+                                s = s - 1;
+                            };
+                            if ((a_len - s) > 1) {
+                                a_len = a_len - 1;
+                            };
+                        };
+                        s = s + 1;
+                    };
+                    if (count > 0) {
+                        if(simple_mapv1::contains_key(&user_s.member,_address)){
+                          let you=  simple_mapv1::borrow_mut(&mut user_s.member,_address);
+                            you.amount=you.amount + count * fee.chatFee
+                        };
                     };
                 };
             };
+            i = i + 1;
         };
     }
 
