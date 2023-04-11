@@ -2,13 +2,13 @@
 name = 'DAT3Pool'
 version = '1.0.0'
 [dependencies]
-DAT3Coin ={local ="../dat3-tokenomics/dat3_coin"}
+DAT3Coin ={local ="../dat3-tokenomics/dat3-coin"}
 [addresses]
 std = "0x1"
 aptos_framework = "0x1"
-dat3 = "0x4f48ef49472364f88267f14b49efe1a951ecb90819025c86955014a38c839075"
-dat3_admin = "0xfe0d9711029c8e4f8dcd25fba0e4dd5c1b0716201acc3407a82ec665c5ff3cc7"
-dat3_pool = "0x46852f8db8abc9798c70da8a02a9d27407918cf0c337ba93df62699f588cf3c9"
-dat3_routel = "0x5c3f5df0afd57b717a32b8c19836aaeb6646de29dd9c46d275ae2f1f5bdd86e"
-dat3_stake = "0x7c074d5e2b3a79e8263f3caa63a0eddb5fd0816de1afd4fe5998c5978b7d30b7"
-dat3_nft = "0xb7b312b7d59c1c3302fc5dce4c4483b1123ef4aa858bbb1df4e2e79fd98799ff"
+dat3 = "0xeaca9a4b2c3e5a305099b8f68d90587e7f965e2e1f4b7505368872644ef95746"
+dat3_admin = "0x782e5459c1a4cf27fd8f93718e0631334da23765d8b2126d3685d41e61e749"
+dat3_pool = "0x95e28ea2104e1d61f7275fd6a46b2519f3c0435411b50c25a44e3edd4e02cf6"
+dat3_routel = "0x98ccf7f0c0d07bbe0f172f299965bdf0f8ddaf2bd4a9a1f9e108521db3ee5f65"
+dat3_stake = "0x6a6244318b161675224aa41e51d26df6776b6edb9b948b858d6e3d6e17edcdeb"
+dat3_nft = "0x67812fa8747a97c463eb32cbfda51002634eb2a9c2cd41385b9a7b53279a6f2f"
