@@ -728,7 +728,7 @@ module dat3::routel {
     acquires FidStore
     {
         let user_address = signer::address_of(user);
-        assert!(user_address == @dat3_routel, error::permission_denied(PERMISSION_DENIED));
+        assert!(user_address == @dat3, error::permission_denied(PERMISSION_DENIED));
         assert!(exists<FidStore>(@dat3_routel), error::permission_denied(PERMISSION_DENIED));
         let f = borrow_global_mut<FidStore>(@dat3_routel);
 
@@ -813,6 +813,7 @@ module dat3::routel {
     /********************/
     /* FRIEND FUNCTIONS */
     /********************/
+    //This method is invoked by the dat3::dat3_core resource account
     public(friend) fun to_reward(admin: &signer) acquires UsersReward, DAT3MsgHoder, MemberStore, FeeStore
     {
         assert!(signer::address_of(admin) == @dat3_admin, error::permission_denied(PERMISSION_DENIED));
