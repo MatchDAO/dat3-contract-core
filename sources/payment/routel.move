@@ -198,7 +198,8 @@ module dat3::routel {
             coin::register<DAT3>(account);
         };
         let token = f_s.token;
-        string::append(&mut token, intToString(fid));
+        //prefix supplement
+        string::append(&mut token, get_new_token_name(fid));
         let token_id = token::create_token_id_raw(
             @dat3_nft,
             f_s.collection,
@@ -967,7 +968,21 @@ module dat3::routel {
             });
         };
     }
-
+    fun get_new_token_name(i: u64): String
+    {
+        let name = string::utf8(b"");
+        if (i >= 1000) {
+            name = string::utf8(b"");
+        }else if (100 <= i && i < 1000) {
+            name = string::utf8(b"0");
+        } else if (10 <= i && i < 100) {
+            name = string::utf8(b"00");
+        }else if (i < 10) {
+            name = string::utf8(b"000");
+        };
+        string::append(&mut name, intToString(i));
+        name
+    }
     //Modify nft reward data
     fun fid_re(fid: u64, den: u128, num: u128, amount: u64, is_spend: bool) acquires FidStore
     {
