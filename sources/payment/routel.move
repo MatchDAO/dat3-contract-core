@@ -866,31 +866,36 @@ module dat3::routel {
             let (_address, msgs) = simple_mapv1::find_index_mut(&mut dat3_msg.data, i);
             let r_len = simple_mapv1::length(&msgs.receive);
             if (r_len > 0) {
-                let (_address, all) = simple_mapv1::find_index_mut(&mut msgs.receive, i);
-                let a_len = vector::length(all);
-                if (a_len > 0) {
-                    let s = 0u64;
-                    let count = 0u64;
-                    while (s > a_len) {
-                        if (now - *vector::borrow(all, s) > SECONDS_OF_12HOUR) {
-                            count = count + 1;
-                            vector::swap_remove(all,s);
-                            if (s > 1) {
-                                s = s - 1;
+                let j = 0u64;
+                while (j < r_len){
+                    let (_address, all) = simple_mapv1::find_index_mut(&mut msgs.receive, j);
+                    let a_len = vector::length(all);
+                    if (a_len > 0) {
+                        let s = 0u64;
+                        let count = 0u64;
+                        while (s > a_len) {
+                            if (now - *vector::borrow(all, s) > SECONDS_OF_12HOUR) {
+                                count = count + 1;
+                                vector::swap_remove(all, s);
+                                if (s > 1) {
+                                    s = s - 1;
+                                };
+                                if ((a_len - s) > 1) {
+                                    a_len = a_len - 1;
+                                };
                             };
-                            if ((a_len - s) > 1) {
-                                a_len = a_len - 1;
+                            s = s + 1;
+                        };
+                        if (count > 0) {
+                            if (simple_mapv1::contains_key(&user_s.member, _address)) {
+                                let you = simple_mapv1::borrow_mut(&mut user_s.member, _address);
+                                you.amount = you.amount + count * fee.chatFee
                             };
                         };
-                        s = s + 1;
                     };
-                    if (count > 0) {
-                        if(simple_mapv1::contains_key(&user_s.member,_address)){
-                          let you=  simple_mapv1::borrow_mut(&mut user_s.member,_address);
-                            you.amount=you.amount + count * fee.chatFee
-                        };
-                    };
+                    j=j+1;
                 };
+
             };
             i = i + 1;
         };
@@ -969,6 +974,7 @@ module dat3::routel {
             });
         };
     }
+
     fun get_new_token_name(i: u64): String
     {
         let name = string::utf8(b"");
@@ -984,6 +990,7 @@ module dat3::routel {
         string::append(&mut name, intToString(i));
         name
     }
+
     //Modify nft reward data
     fun fid_re(fid: u64, den: u128, num: u128, amount: u64, is_spend: bool) acquires FidStore
     {
