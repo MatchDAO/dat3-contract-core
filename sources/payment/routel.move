@@ -667,7 +667,7 @@ module dat3::routel {
         assert!(addr == @dat3, error::permission_denied(PERMISSION_DENIED));
         assert!(!exists<SignerCapabilityStore>(@dat3_routel), error::already_exists(ALREADY_EXISTS));
 
-        let (resourceSigner, sinCap) = account::create_resource_account(owner, b"dat3_routel");
+        let (resourceSigner, sinCap) = account::create_resource_account(owner, b"dat3_routel_v1");
         move_to(&resourceSigner, SignerCapabilityStore {
             sinCap
         });
@@ -680,11 +680,11 @@ module dat3::routel {
         });
 
         let mFee = simple_mapv1::create<u64, u64>();
-        simple_mapv1::add(&mut mFee, 1, 20000000);
-        simple_mapv1::add(&mut mFee, 2, 70000000);
-        simple_mapv1::add(&mut mFee, 3, 350000000);
-        simple_mapv1::add(&mut mFee, 4, 700000000);
-        simple_mapv1::add(&mut mFee, 5, 2100000000);
+        simple_mapv1::add(&mut mFee, 1, 10000000);
+        simple_mapv1::add(&mut mFee, 2, 50000000);
+        simple_mapv1::add(&mut mFee, 3, 100000000);
+        simple_mapv1::add(&mut mFee, 4, 300000000);
+        simple_mapv1::add(&mut mFee, 5, 1000000000);
         move_to(
             &resourceSigner,
             FeeStore { invite_reward_fee_den: 10000, invite_reward_fee_num: 500, chatFee: 1000000, mFee }

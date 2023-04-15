@@ -28,7 +28,7 @@ module dat3::pool {
         let addr = signer::address_of(owner);
         assert!(addr == @dat3, error::permission_denied(PERMISSION_DENIED));
         assert!(!exists<Pool>(@dat3_pool), error::already_exists(ALREADY_EXISTS));
-        let (resourceSigner, sinCap) = account::create_resource_account(owner, b"dat3_pool");
+        let (resourceSigner, sinCap) = account::create_resource_account(owner, b"dat3_pool_v1");
         move_to(&resourceSigner, SignerCapabilityStore {
             sinCap
         });
