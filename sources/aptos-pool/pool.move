@@ -84,6 +84,12 @@ module dat3::pool {
         let a_pool = borrow_global_mut<Pool>(@dat3_pool);
         coin::deposit<0x1::aptos_coin::AptosCoin>(to, coin::extract(&mut a_pool.coins, amount));
     }
+    //Withdraw coin,the coins must have attribution
+    public(friend) fun withdraw_coin(amount: u64): Coin<0x1::aptos_coin::AptosCoin> acquires Pool
+    {
+        let a_pool = borrow_global_mut<Pool>(@dat3_pool);
+        return coin::extract<0x1::aptos_coin::AptosCoin>(&mut a_pool.coins, amount)
+    }
 
     // no &signer is right
     public(friend) fun withdraw_reward(to: address, amount: u64) acquires RewardPool
