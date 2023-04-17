@@ -9,7 +9,7 @@ module dat3::routel {
     use aptos_framework::coin;
     use aptos_framework::timestamp;
 
-    use aptos_token::token;
+    use dat3_owner::dat3_invitation_nft;
 
     use dat3::dat3_coin::DAT3;
     use dat3::pool;
@@ -18,12 +18,6 @@ module dat3::routel {
     friend dat3::interface;
     struct UsersReward has key, store {
         data: SimpleMapV1<address, Reward>,
-    }
-
-    struct FidStore has key, store {
-        token: String,
-        collection: String,
-        data: SimpleMapV1<u64, FidReward>,
     }
 
 
@@ -53,14 +47,6 @@ module dat3::routel {
         data: SimpleMapV1<address, MsgHoder>
     }
 
-    struct FidReward has key, store, drop {
-        fid: u64,
-        spend: u64,
-        earn: u64,
-        users: vector<address>,
-        claim: u64,
-        amount: u64,
-    }
 
     struct MsgHoder has copy, drop, key, store {
         senders: vector<address>,
@@ -128,7 +114,7 @@ module dat3::routel {
         account: &signer,
         fid: u64,
         uid: u64
-    ) acquires FidStore, UsersReward, MemberStore, DAT3MsgHoder
+    ) acquires UsersReward, MemberStore, DAT3MsgHoder
     {
         let user_address = signer::address_of(account);
         if (!coin::is_account_registered<DAT3>(user_address)) {
@@ -188,29 +174,9 @@ module dat3::routel {
     }
 
     //claim_invite_reward ,must have nft
-    public entry fun claim_invite_reward(account: &signer, fid: u64) acquires FidStore
+    public entry fun claim_invite_reward(account: &signer, fid: u64)
     {
-        let addr = signer::address_of(account);
-        let f_s = borrow_global_mut<FidStore>(@dat3_routel);
-        assert!(simple_mapv1::contains_key(&f_s.data, &fid), error::not_found(NOT_FOUND));
-        let fid_r = simple_mapv1::borrow_mut(&mut f_s.data, &fid);
-        if (!coin::is_account_registered<DAT3>(addr)) {
-            coin::register<DAT3>(account);
-        };
-        let token = f_s.token;
-        //prefix supplement
-        string::append(&mut token, get_new_token_name(fid));
-        let token_id = token::create_token_id_raw(
-            @dat3_nft,
-            f_s.collection,
-            token,
-            0
-        );
-        if (token::balance_of(addr, token_id) > 0 && fid_r.amount > 0) {
-            pool::withdraw(addr, fid_r.amount);
-            fid_r.claim = fid_r.claim + fid_r.amount;
-            fid_r.amount = 0;
-        };
+        dat3_invitation_nft::claim_invite_reward(account, fid);
     }
 
     //Modify user charging standard
@@ -226,7 +192,7 @@ module dat3::routel {
     }
 
     public entry fun send_msg(account: &signer, from: address, to: address, count: u64, gas: u64)
-    acquires FeeStore, FidStore, UsersReward, DAT3MsgHoder, MemberStore
+    acquires FeeStore, UsersReward, DAT3MsgHoder, MemberStore, SignerCapabilityStore
     {
         assert!(signer::address_of(account) == @dat3, error::permission_denied(PERMISSION_DENIED));
         // check users
@@ -399,7 +365,7 @@ module dat3::routel {
     }
 
     public entry fun call_1(account: &signer, to: address)
-    acquires FeeStore, FidStore, UsersReward, DAT3MsgHoder, MemberStore
+    acquires FeeStore, UsersReward, DAT3MsgHoder, MemberStore, SignerCapabilityStore
     {
         let user_address = signer::address_of(account);
         // check users
@@ -568,7 +534,7 @@ module dat3::routel {
 
     //Charge per minute
     public entry fun one_minute(requester: &signer, receiver: address, grade: u64, )
-    acquires MemberStore, FidStore, UsersReward, CurrentRoom, FeeStore
+    acquires MemberStore, UsersReward, CurrentRoom, FeeStore, SignerCapabilityStore
     {
         let req_addr = signer::address_of(requester);
         // check users
@@ -673,11 +639,6 @@ module dat3::routel {
         });
         move_to(&resourceSigner, UsersReward { data: simple_mapv1::create<address, Reward>() });
 
-        move_to(&resourceSigner, FidStore {
-            collection: string::utf8(b"DAT3 invitation NFT"),
-            token: string::utf8(b"DAT3 invitation NFT#"),
-            data: simple_mapv1::create<u64, FidReward>()
-        });
 
         let mFee = simple_mapv1::create<u64, u64>();
         simple_mapv1::add(&mut mFee, 1, 10000000);
@@ -685,6 +646,7 @@ module dat3::routel {
         simple_mapv1::add(&mut mFee, 3, 100000000);
         simple_mapv1::add(&mut mFee, 4, 300000000);
         simple_mapv1::add(&mut mFee, 5, 1000000000);
+        // user: &signer, grade: u64, fee: u64, cfee: u64
         move_to(
             &resourceSigner,
             FeeStore { invite_reward_fee_den: 10000, invite_reward_fee_num: 500, chatFee: 1000000, mFee }
@@ -695,7 +657,7 @@ module dat3::routel {
     }
 
     public entry fun sys_user_init(account: &signer, fid: u64, uid: u64, user: address
-    ) acquires FidStore, UsersReward, MemberStore, DAT3MsgHoder
+    ) acquires UsersReward, MemberStore, DAT3MsgHoder
     {
         let _user_address = signer::address_of(account);
         assert!(_user_address == @dat3, error::permission_denied(PERMISSION_DENIED));
@@ -723,40 +685,13 @@ module dat3::routel {
         };
     }
 
-    //Add or delete nftid
-    public entry fun change_sys_fid(user: &signer, fid: u64, del: bool, token: String, collection: String)
-    acquires FidStore
-    {
-        let user_address = signer::address_of(user);
-        assert!(user_address == @dat3, error::permission_denied(PERMISSION_DENIED));
-        assert!(exists<FidStore>(@dat3_routel), error::permission_denied(PERMISSION_DENIED));
-        let f = borrow_global_mut<FidStore>(@dat3_routel);
-
-        let contains = simple_mapv1::contains_key(&f.data, &fid);
-        if (contains) {
-            let fr = simple_mapv1::borrow_mut(&mut f.data, &fid);
-            if (del) {
-                assert!(fr.amount == 0
-                    && vector::length(&fr.users) == 0
-                    && fr.earn == 0
-                    && fr.spend == 0
-                    && fr.amount == 0, error::permission_denied(ALREADY_EXISTS));
-                simple_mapv1::remove(&mut f.data, &fid);
-            }else {
-                if (collection != f.collection) {
-                    f.collection = collection;
-                    f.token = token;
-                };
-            };
-        }
-    }
 
     public entry fun sys_call_1(
         _account: &signer,
         sender: address,
         to: address,
         gas: u64
-    ) acquires DAT3MsgHoder, FeeStore, MemberStore, UsersReward, FidStore
+    ) acquires DAT3MsgHoder, FeeStore, MemberStore, UsersReward, SignerCapabilityStore
     {
         let user_address = signer::address_of(_account);
         assert!(user_address == @dat3, error::permission_denied(PERMISSION_DENIED));
@@ -867,7 +802,7 @@ module dat3::routel {
             let r_len = simple_mapv1::length(&msgs.receive);
             if (r_len > 0) {
                 let j = 0u64;
-                while (j < r_len){
+                while (j < r_len) {
                     let (_address, all) = simple_mapv1::find_index_mut(&mut msgs.receive, j);
                     let a_len = vector::length(all);
                     if (a_len > 0) {
@@ -893,9 +828,8 @@ module dat3::routel {
                             };
                         };
                     };
-                    j=j+1;
+                    j = j + 1;
                 };
-
             };
             i = i + 1;
         };
@@ -910,11 +844,11 @@ module dat3::routel {
         user_address: address,
         fid: u64,
         uid: u64
-    ) acquires FidStore, UsersReward, MemberStore, DAT3MsgHoder
+    ) acquires UsersReward, MemberStore, DAT3MsgHoder
     {
         //cheak_fid
         assert!(fid > 0 && fid <= 5040, error::invalid_argument(INVALID_ID));
-        let fids_tore = borrow_global_mut<FidStore>(@dat3_routel);
+
 
         //init UsersReward
         let user_r = borrow_global_mut<UsersReward>(@dat3_routel);
@@ -930,23 +864,7 @@ module dat3::routel {
                 ), every_dat3_reward_time: vector::empty<u64>()
             });
         };
-        if (fid > 0) {
-            if (!simple_mapv1::contains_key(&mut fids_tore.data, &fid)) {
-                simple_mapv1::add(&mut fids_tore.data, fid, FidReward {
-                    fid,
-                    spend: 0,
-                    earn: 0,
-                    users: vector::empty<address>(),
-                    claim: 0,
-                    amount: 0,
-                })
-            };
-            //add to FidStore.users
-            let fidr = simple_mapv1::borrow_mut(&mut fids_tore.data, &fid);
-            if (!vector::contains(&mut fidr.users, &user_address)) {
-                vector::push_back(&mut fidr.users, user_address);
-            };
-        };
+
         //add member
         let member_hoder = borrow_global_mut<MemberStore>(@dat3_routel);
         if (!simple_mapv1::contains_key(&mut member_hoder.member, &user_address)) {
@@ -975,36 +893,17 @@ module dat3::routel {
         };
     }
 
-    fun get_new_token_name(i: u64): String
-    {
-        let name = string::utf8(b"");
-        if (i >= 1000) {
-            name = string::utf8(b"");
-        }else if (100 <= i && i < 1000) {
-            name = string::utf8(b"0");
-        } else if (10 <= i && i < 100) {
-            name = string::utf8(b"00");
-        }else if (i < 10) {
-            name = string::utf8(b"000");
-        };
-        string::append(&mut name, intToString(i));
-        name
-    }
 
     //Modify nft reward data
-    fun fid_re(fid: u64, den: u128, num: u128, amount: u64, is_spend: bool) acquires FidStore
-    {
-        let f = borrow_global_mut<FidStore>(@dat3_routel);
-        if (simple_mapv1::contains_key(&f.data, &fid)) {
-            let fr = simple_mapv1::borrow_mut(&mut f.data, &fid);
-            let val = (((amount as u128) / den * num) as u64);
-            if (is_spend) {
-                fr.spend = fr.spend + val;
-            }else {
-                fr.earn = fr.earn + val;
-            };
-            fr.amount = fr.amount + val;
-        };
+    fun fid_re(fid: u64, den: u128, num: u128, amount: u64, is_spend: bool)
+    acquires SignerCapabilityStore {
+        let val = (((amount as u128) / den * num) as u64);
+        //Get resource account signature
+        let sig = account::create_signer_with_capability(&borrow_global<SignerCapabilityStore>(@dat3_routel).sinCap);
+        //Withdraw coin  from pool
+        let coin = pool::withdraw_coin(val);
+        //Sent to nft invitation reward
+        dat3_invitation_nft::invitation_reward(&sig, fid, coin, is_spend) ;
     }
 
     const NUM_VEC: vector<u8> = b"0123456789";
@@ -1138,18 +1037,6 @@ module dat3::routel {
         (fee.chatFee, vl)
     }
 
-    //see fid invite reward
-    #[view]
-    public fun fid_reward(fid: u64): (u64, u64, u64, u64, vector<address>, u64, ) acquires FidStore
-    {
-        assert!(exists<FidStore>(@dat3_routel), error::not_found(NOT_FOUND));
-        let f = borrow_global<FidStore>(@dat3_routel);
-        if (simple_mapv1::contains_key(&f.data, &fid)) {
-            let fr = simple_mapv1::borrow(&f.data, &fid);
-            return (fr.fid, fr.amount, fr.spend, fr.earn, fr.users, fr.claim)
-        };
-        return (fid, 0, 0, 0, vector::empty<address>(), 0)
-    }
 
     //Determine whether the current user identity is a receiver or a sender
     #[view]
