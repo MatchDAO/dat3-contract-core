@@ -4,7 +4,7 @@ module dat3::pool {
     use aptos_framework::account::{Self, SignerCapability};
     use aptos_framework::coin::{Self, Coin};
     use dat3::dat3_coin::DAT3;
-    friend dat3::routel;
+    friend dat3::reward;
     friend dat3::interface;
 
     struct Pool has key {
@@ -44,13 +44,6 @@ module dat3::pool {
         };
     }
 
-    // deposit token
-    public entry fun deposit(account: &signer, amount: u64) acquires Pool
-    {
-        let your_coin = coin::withdraw<0x1::aptos_coin::AptosCoin>(account, amount);
-        let a_pool = borrow_global_mut<Pool>(@dat3_pool);
-        coin::merge(&mut a_pool.coins, your_coin);
-    }
 
     public entry fun deposit_reward(account: &signer, amount: u64) acquires RewardPool
     {
@@ -59,6 +52,12 @@ module dat3::pool {
         coin::merge(&mut r_pool.coins, your_coin);
     }
 
+    public fun deposit_coin(coins: Coin<0x1::aptos_coin::AptosCoin>)
+    acquires Pool
+    {
+        let r_pool = borrow_global_mut<Pool>(@dat3_pool);
+        coin::merge(&mut r_pool.coins, coins);
+    }
 
     public fun deposit_reward_coin(coins: Coin<DAT3>) acquires RewardPool
     {
@@ -84,6 +83,7 @@ module dat3::pool {
         let a_pool = borrow_global_mut<Pool>(@dat3_pool);
         coin::deposit<0x1::aptos_coin::AptosCoin>(to, coin::extract(&mut a_pool.coins, amount));
     }
+
     //Withdraw coin,the coins must have attribution
     public(friend) fun withdraw_coin(amount: u64): Coin<0x1::aptos_coin::AptosCoin> acquires Pool
     {

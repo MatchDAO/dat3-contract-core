@@ -1,0 +1,15 @@
+[package]
+name = 'DAT3Pool'
+version = '1.0.0'
+[dependencies]
+DAT3Coin ={local ="../../dat3-tokenomics/dat3-coin"}
+DAT3InvitationReward ={local ="../../dat3-nft/invitation_reward"}
+[addresses]
+std = "0x1"
+aptos_framework = "0x1"
+dat3 = "0x25ef1bacaafb6a69b099c00091d9f4c52cc0b963236dead831bc2000fb23246e"
+dat3_admin = "0xc3150d70bc27b44775f2001704c4eb7de0a45bd9cf4a0630b5b5b6983607a1ad"
+dat3_pool = "0xf830df3e111768626f58a5db4027825f821741be0c0c14bf5e1cffcf666bd3"
+dat3_routel = "0xf3ed6e61366b53f9fad3860d6417343fdcb0a46b6a21d144f221b588ba30f6ab"
+dat3_stake = "0x702569fc4c18a727a938dbecec618e72edba64692107b84d74d299bce346454b"
+dat3_nft = "0x3513045b75fc5e161d9bb2c43fc0b0b7ee3f299176248573a06426e39a705326"

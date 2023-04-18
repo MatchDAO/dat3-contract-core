@@ -1,10 +1,8 @@
 [package]
-name = 'DAT3Pool'
+name = 'DAT3Payment'
 version = '1.0.0'
 [dependencies]
-DAT3Coin ={local ="../dat3-tokenomics/dat3-coin"}
-AptosFramework = { local = "../aptos-core-mainnet/aptos-move/framework/aptos-framework" }
-AptosToken = { local = "../aptos-core-mainnet/aptos-move/framework/aptos-token" }
+DAT3Pool ={local ="../reward-pool"}
 [addresses]
 std = "0x1"
 aptos_framework = "0x1"
