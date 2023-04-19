@@ -139,14 +139,18 @@ module dat3::reward {
     }
 
     // unsafe
-    public fun empty_user_init(user: address, fid: u64, uid: u64) acquires UsersReward
+    public fun payment_empty_user_init(payment: &signer,user: address, fid: u64, uid: u64) acquires UsersReward
+    {
+        assert!(signer::address_of(payment)==@dat3_payment,error::invalid_argument(PERMISSION_DENIED));
+        empty_user_init(user, fid, uid);
+    }
+    fun empty_user_init(user: address, fid: u64, uid: u64) acquires UsersReward
     {
         if (!coin::is_account_registered<0x1::aptos_coin::AptosCoin>(user)) {
             create_account(user);
         };
         user_init_fun(user, fid, uid);
     }
-
     //user init
     fun user_init_fun(
         user_address: address,
@@ -224,9 +228,23 @@ module dat3::reward {
         if (simple_mapv1::contains_key(&user_r.data, &user_address)) {
             let your = simple_mapv1::borrow_mut(&mut user_r.data, &user_address);
             if (your.reward_dat3 > 0) {
-                pool::withdraw_reward(user_address, your.reward);
+                pool::withdraw_reward(user_address, your.reward_dat3);
                 your.reward_dat3_claimed = your.reward_dat3_claimed + your.reward_dat3;
                 your.reward_dat3 = 0;
+            };
+        };
+    }
+    //claim_reward
+    public entry fun claim_reward(account: &signer) acquires UsersReward
+    {
+        let user_address = signer::address_of(account);
+        let user_r = borrow_global_mut<UsersReward>(@dat3_routel);
+        if (simple_mapv1::contains_key(&user_r.data, &user_address)) {
+            let your = simple_mapv1::borrow_mut(&mut user_r.data, &user_address);
+            if (your.reward > 0) {
+                pool::withdraw(user_address, your.reward);
+                your.reward_claimed = your.reward_claimed + your.reward;
+                your.reward = 0;
             };
         };
     }
@@ -310,7 +328,7 @@ module dat3::reward {
 
 
     //Modify nft reward data
-    public fun invitation_reward(fid: u64, den: u128, num: u128, amount: u64, is_spend: bool)
+  fun invitation_reward(fid: u64, den: u128, num: u128, amount: u64, is_spend: bool)
     acquires SignerCapabilityStore {
         let val = (((amount as u128) / den * num) as u64);
         //Get resource account signature
@@ -357,7 +375,7 @@ module dat3::reward {
 
     //get user assets
     #[view]
-    public fun assets(addr: address): (u64, u64, u64, u64, u64, u64, u64, u64, u64, u64, u64, u64, u64, u64)
+    public fun assets(addr: address): (u64,  u64, u64, u64, u64, u64, u64, u64, u64, u64, u64, u64, u64)
     acquires UsersReward, FeeStore
     {
         let _uid = 0u64;
@@ -367,7 +385,6 @@ module dat3::reward {
         let _reward_claimed = 0u64;
         let _reward_dat3 = 0u64;
         let _reward_dat3_claimed = 0u64;
-        let _freeze = 0u64;
 
         let _taday_spend = 0u64;
         let _total_spend = 0u64;
@@ -385,7 +402,7 @@ module dat3::reward {
             _reward_claimed = r.reward_claimed;
             _reward_dat3 = r.reward_dat3;
             _reward_dat3_claimed = r.reward_dat3_claimed;
-            _freeze = 0;
+
             _taday_spend = r.total_spend;
             _total_spend = r.total_spend;
             let len = simple_mapv1::length(&r.taday_earn);
@@ -404,7 +421,7 @@ module dat3::reward {
             _dat3 = coin::balance<DAT3>(addr)
         } ;
         (_uid, _fid, _mFee, _apt, _dat3, _reward, _reward_claimed,
-            _reward_dat3, _reward_dat3_claimed, _freeze, _taday_spend, _total_spend, _total_earn, _taday_earn)
+            _reward_dat3, _reward_dat3_claimed,  _taday_spend, _total_spend, _total_earn, _taday_earn)
     }
 
     #[view]
