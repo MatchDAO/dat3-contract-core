@@ -71,26 +71,51 @@ module dat3::payment {
     const INVALID_ID: u64 = 400;
 
 
-    /********************/
-    /*   ENTRY FUNCTIONS */
-    /********************/
 
 
     //claim_reward
     public entry fun claim_reward(account: &signer)
     {
+        reward::claim_reward(account);
+    }
+    //claim_reward
+    public entry fun claim_dat3_reward(account: &signer)
+    {
         reward::claim_dat3_reward(account);
     }
 
-
     //Modify user charging standard
-    public entry fun change_my_fee(user: &signer, grade: u64)
+    public entry fun change_my_fee(account: &signer, grade: u64)
     {
-        reward::change_my_fee(user, grade)
+        reward::change_my_fee(account, grade)
+    }
+
+    #[view]
+    public fun fee_of_mine(account: address): (u64, u64, u64)
+    {
+        return  reward::fee_of_mine(account)
+    }
+
+    #[view]
+    public fun fee_of_all(): (u64, vector<u64>)
+    {
+        return  reward::fee_of_all()
+    }
+
+    #[view]
+    public fun assets(account: address): (u64, u64, u64, u64, u64, u64, u64, u64, u64, u64, u64, u64, u64)
+    {
+         return reward::assets(account)
+    }
+
+    #[view]
+    public fun reward_record(account: address): (u64, u64, u64, u64, vector<u64>, vector<u64>, vector<u64>, vector<u64>, )
+    {
+         return reward::reward_record(account)
     }
 
     public entry fun send_msg(account: &signer, to: address)
-    acquires DAT3MsgHoder, FreezeStore
+    acquires DAT3MsgHoder, FreezeStore, SignerCapabilityStore
     {
         let from = signer::address_of(account);
         // check users
@@ -182,11 +207,13 @@ module dat3::payment {
 
     //Charge per minute
     public entry fun one_minute(requester: &signer, receiver: address, grade: u64, )
-    acquires CurrentRoom
+    acquires CurrentRoom, SignerCapabilityStore
     {
         let req_addr = signer::address_of(requester);
         // check users
-        reward::empty_user_init(receiver, 0u64, 0u64);
+        let sig = account::create_signer_with_capability(&borrow_global<SignerCapabilityStore>(@dat3_payment).sinCap);
+
+        reward::payment_empty_user_init(&sig,receiver, 0u64, 0u64);
         let (_, _, fee) = reward::fee_of_mine(receiver);
         assert!(fee <= coin::balance<0x1::aptos_coin::AptosCoin>(req_addr), error::aborted(EINSUFFICIENT_BALANCE));
 
@@ -217,7 +244,7 @@ module dat3::payment {
         assert!(addr == @dat3, error::permission_denied(PERMISSION_DENIED));
         assert!(!exists<SignerCapabilityStore>(@dat3_routel), error::already_exists(ALREADY_EXISTS));
 
-        let (resourceSigner, sinCap) = account::create_resource_account(owner, b"dat3_routel_v1");
+        let (resourceSigner, sinCap) = account::create_resource_account(owner, b"dat3_payment_v1");
         move_to(&resourceSigner, SignerCapabilityStore {
             sinCap
         });
@@ -304,14 +331,15 @@ module dat3::payment {
 
 
     public fun add_sender(sender: address, to: address): u64
-    acquires DAT3MsgHoder {
+    acquires DAT3MsgHoder, SignerCapabilityStore {
         let dat3_msg = borrow_global_mut<DAT3MsgHoder>(@dat3_routel);
         let to_init = simple_mapv1::contains_key(&dat3_msg.data, &to) ;
         let sender_init = simple_mapv1::contains_key(&dat3_msg.data, &sender) ;
         //Both are not initialized
         if (!to_init && !sender_init) {
-            reward::empty_user_init(to, 0u64, 0u64);
-            reward::empty_user_init(sender, 0u64, 0u64);
+            let sig = account::create_signer_with_capability(&borrow_global<SignerCapabilityStore>(@dat3_payment).sinCap);
+            reward::payment_empty_user_init(&sig,to, 0u64, 0u64);
+            reward::payment_empty_user_init(&sig,sender, 0u64, 0u64);
             //
             simple_mapv1::add(&mut dat3_msg.data, sender, MsgHoder {
                 receive: simple_mapv1::create<address, vector<u64>>(),
@@ -323,9 +351,10 @@ module dat3::payment {
                 receive,
             });
         };
+        let sig = account::create_signer_with_capability(&borrow_global<SignerCapabilityStore>(@dat3_payment).sinCap);
 
         if (to_init && !sender_init) {
-            reward::empty_user_init(sender, 0u64, 0u64);
+            reward::payment_empty_user_init(&sig,sender, 0u64, 0u64);
             simple_mapv1::add(&mut dat3_msg.data, sender, MsgHoder {
                 receive: simple_mapv1::create<address, vector<u64>>(),
             });
@@ -336,7 +365,7 @@ module dat3::payment {
             };
         };
         if (!to_init && sender_init) {
-            reward::empty_user_init(to, 0u64, 0u64);
+            reward::payment_empty_user_init(&sig,to, 0u64, 0u64);
             simple_mapv1::add(&mut dat3_msg.data, to, MsgHoder {
                 receive: simple_mapv1::create<address, vector<u64>>(),
             });
@@ -404,7 +433,7 @@ module dat3::payment {
     }
 
     #[view]
-    public fun view_call_1(sender: address, to: address): vector<u64> acquires DAT3MsgHoder {
+    public fun view_receive(sender: address, to: address): vector<u64> acquires DAT3MsgHoder {
         let dat3_msg = borrow_global<DAT3MsgHoder>(@dat3_routel);
         if (!simple_mapv1::contains_key(&dat3_msg.data, &to)) {
             return vector::empty<u64>()
