@@ -13,11 +13,14 @@ module dat3::reward {
     use dat3::dat3_coin::DAT3;
     use dat3::pool;
     use dat3::simple_mapv1::{Self, SimpleMapV1};
+    use dat3::smart_tablev1::{Self, SmartTablev1};
+
+
 
     friend dat3::interface;
 
     struct UsersReward has key, store {
-        data: SimpleMapV1<address, Reward>,
+        data: SmartTablev1<address, Reward>,
     }
 
 
@@ -52,6 +55,7 @@ module dat3::reward {
         chatFee: u64,
         mFee: SimpleMapV1<u64, u64>,
     }
+
     struct AdminStore has key, store {
         admin: address,
     }
@@ -97,23 +101,34 @@ module dat3::reward {
     public(friend) fun to_reward(admin: &signer) acquires UsersReward
     {
         assert!(signer::address_of(admin) == @dat3_admin, error::permission_denied(PERMISSION_DENIED));
-        let usr = borrow_global_mut<UsersReward>(@dat3_routel);
+        let usr = borrow_global_mut<UsersReward>(@dat3_reward);
         //index
         let i = 0u64;
-        let leng = simple_mapv1::length(&usr.data);
+        let bucket_keys = smart_tablev1::bucket_keys(&usr.data);
+        let leng = vector::length(&bucket_keys);
         let now = timestamp::now_seconds();
         // Get yesterday's key
         let last_key = (((now as u128) - SECONDS_OF_DAY) / SECONDS_OF_DAY as u64);
         let users = vector::empty<address>();
         let today_volume = 0u128;
         while (i < leng) {
-            let (address, user) = simple_mapv1::find_index(&usr.data, i);
-            if (simple_mapv1::contains_key(&user.taday_earn, &last_key)) {
-                let last_earn = simple_mapv1::borrow(&user.taday_earn, &last_key);
-                if (*last_earn > 0) {
-                    today_volume = today_volume + (*last_earn as u128);
-                    vector::push_back(&mut users, *address);
-                }
+            let usr_bucket = smart_tablev1::borrow_bucket<address, Reward>
+                (&usr.data, *vector::borrow(&bucket_keys, i));
+            let b_len = vector::length(usr_bucket);
+            if (b_len > 0) {
+                let j = 0u64;
+                while (j < b_len) {
+                    let en = vector::borrow(usr_bucket, j);
+                    let (_address, user) = smart_tablev1::entry(en);
+                    if (simple_mapv1::contains_key(&user.taday_earn, &last_key)) {
+                        let last_earn = simple_mapv1::borrow(&user.taday_earn, &last_key);
+                        if (*last_earn > 0) {
+                            today_volume = today_volume + (*last_earn as u128);
+                            vector::push_back(&mut users, *_address);
+                        }
+                    };
+                    j = j + 1;
+                };
             };
             i = i + 1;
         };
@@ -123,7 +138,7 @@ module dat3::reward {
         if (leng > 0) {
             while (i < leng) {
                 let user_addr = vector::borrow(&users, i);
-                let user_r = simple_mapv1::borrow_mut(&mut usr.data, user_addr);
+                let user_r = smart_tablev1::borrow_mut<address, Reward>(&mut usr.data, *user_addr);
                 if (simple_mapv1::contains_key(&user_r.taday_earn, &last_key)) {
                     let last_earn = simple_mapv1::borrow(&user_r.taday_earn, &last_key);
                     if (*last_earn > 0) {
@@ -139,11 +154,12 @@ module dat3::reward {
     }
 
     // unsafe
-    public fun payment_empty_user_init(payment: &signer,user: address, fid: u64, uid: u64) acquires UsersReward
+    public fun payment_empty_user_init(payment: &signer, user: address, fid: u64, uid: u64) acquires UsersReward
     {
-        assert!(signer::address_of(payment)==@dat3_payment,error::invalid_argument(PERMISSION_DENIED));
+        assert!(signer::address_of(payment) == @dat3_payment, error::invalid_argument(PERMISSION_DENIED));
         empty_user_init(user, fid, uid);
     }
+
     fun empty_user_init(user: address, fid: u64, uid: u64) acquires UsersReward
     {
         if (!coin::is_account_registered<0x1::aptos_coin::AptosCoin>(user)) {
@@ -151,6 +167,7 @@ module dat3::reward {
         };
         user_init_fun(user, fid, uid);
     }
+
     //user init
     fun user_init_fun(
         user_address: address,
@@ -159,12 +176,12 @@ module dat3::reward {
     ) acquires UsersReward
     {
         //cheak_fid
-        assert!(fid > 0 && fid <= 5040, error::invalid_argument(INVALID_ID));
+        assert!(fid >= 0 && fid <= 5040, error::invalid_argument(INVALID_ID));
         //init UsersReward
-        let user_r = borrow_global_mut<UsersReward>(@dat3_routel);
+        let user_r = borrow_global_mut<UsersReward>(@dat3_reward);
 
-        if (!simple_mapv1::contains_key(&user_r.data, &user_address)) {
-            simple_mapv1::add(&mut user_r.data, user_address, Reward {
+        if (!smart_tablev1::contains(&user_r.data, user_address)) {
+            smart_tablev1::add(&mut user_r.data, user_address, Reward {
                 uid: 0u64,
                 fid: 0u64,
                 //call fee
@@ -184,7 +201,7 @@ module dat3::reward {
                 every_dat3_reward_time: vector::empty<u64>()
             });
         }else {
-            let user = simple_mapv1::borrow_mut(&mut user_r.data, &user_address);
+            let user = smart_tablev1::borrow_mut(&mut user_r.data, user_address);
             if (user.fid == 0 && fid > 0 && fid <= 5040) {
                 user.fid = fid;
             };
@@ -197,14 +214,14 @@ module dat3::reward {
     public entry fun init(owner: &signer)
     {
         let addr = signer::address_of(owner);
-        assert!(addr == @dat3, error::permission_denied(PERMISSION_DENIED));
-        assert!(!exists<SignerCapabilityStore>(@dat3_routel), error::already_exists(ALREADY_EXISTS));
+        assert!(addr == @dat3, error::already_exists(ALREADY_EXISTS));
+        assert!(!exists<SignerCapabilityStore>(@dat3_reward), error::already_exists(ALREADY_EXISTS));
 
         let (resourceSigner, sinCap) = account::create_resource_account(owner, b"dat3_reward_v1");
         move_to(&resourceSigner, SignerCapabilityStore {
             sinCap
         });
-        move_to(&resourceSigner, UsersReward { data: simple_mapv1::create<address, Reward>() });
+        move_to(&resourceSigner, UsersReward { data: smart_tablev1::new_with_config<address, Reward>(5, 75, 200) });
         let mFee = simple_mapv1::create<u64, u64>();
         simple_mapv1::add(&mut mFee, 1, 10000000);
         simple_mapv1::add(&mut mFee, 2, 50000000);
@@ -216,7 +233,6 @@ module dat3::reward {
             &resourceSigner,
             FeeStore { invite_reward_fee_den: 10000, invite_reward_fee_num: 500, chatFee: 1000000, mFee }
         );
-
     }
 
     //claim_reward
@@ -224,9 +240,9 @@ module dat3::reward {
     {
         let user_address = signer::address_of(account);
         assert!(coin::is_account_registered<DAT3>(user_address), error::permission_denied(PERMISSION_DENIED));
-        let user_r = borrow_global_mut<UsersReward>(@dat3_routel);
-        if (simple_mapv1::contains_key(&user_r.data, &user_address)) {
-            let your = simple_mapv1::borrow_mut(&mut user_r.data, &user_address);
+        let user_r = borrow_global_mut<UsersReward>(@dat3_reward);
+        if (smart_tablev1::contains(&user_r.data, user_address)) {
+            let your = smart_tablev1::borrow_mut(&mut user_r.data, user_address);
             if (your.reward_dat3 > 0) {
                 pool::withdraw_reward(user_address, your.reward_dat3);
                 your.reward_dat3_claimed = your.reward_dat3_claimed + your.reward_dat3;
@@ -234,13 +250,14 @@ module dat3::reward {
             };
         };
     }
+
     //claim_reward
     public entry fun claim_reward(account: &signer) acquires UsersReward
     {
         let user_address = signer::address_of(account);
-        let user_r = borrow_global_mut<UsersReward>(@dat3_routel);
-        if (simple_mapv1::contains_key(&user_r.data, &user_address)) {
-            let your = simple_mapv1::borrow_mut(&mut user_r.data, &user_address);
+        let user_r = borrow_global_mut<UsersReward>(@dat3_reward);
+        if (smart_tablev1::contains(&user_r.data, user_address)) {
+            let your = smart_tablev1::borrow_mut(&mut user_r.data, user_address);
             if (your.reward > 0) {
                 pool::withdraw(user_address, your.reward);
                 your.reward_claimed = your.reward_claimed + your.reward;
@@ -256,7 +273,7 @@ module dat3::reward {
         assert!(user_address == @dat3, error::permission_denied(PERMISSION_DENIED));
         assert!(grade > 0 && grade <= 5, error::out_of_range(OUT_OF_RANGE));
         assert!(fee > 0, error::out_of_range(OUT_OF_RANGE));
-        let fee_s = borrow_global_mut<FeeStore>(@dat3_routel);
+        let fee_s = borrow_global_mut<FeeStore>(@dat3_reward);
         if (cfee > 0) {
             fee_s.chatFee = cfee;
         };
@@ -271,9 +288,9 @@ module dat3::reward {
     {
         let user_address = signer::address_of(user);
         assert!(grade > 0 && grade <= 5, error::out_of_range(OUT_OF_RANGE));
-        let member_store = borrow_global_mut<UsersReward>(@dat3_routel);
-        if (simple_mapv1::contains_key(&member_store.data, &user_address)) {
-            let is_me = simple_mapv1::borrow_mut(&mut member_store.data, &user_address);
+        let member_store = borrow_global_mut<UsersReward>(@dat3_reward);
+        if (smart_tablev1::contains(&member_store.data, user_address)) {
+            let is_me = smart_tablev1::borrow_mut(&mut member_store.data, user_address);
             is_me.mFee = grade;
         };
     }
@@ -287,12 +304,12 @@ module dat3::reward {
     )
     acquires SignerCapabilityStore, UsersReward, FeeStore
     {
-        let user_r = borrow_global_mut<UsersReward>(@dat3_routel);
-        let fees = borrow_global<FeeStore>(@dat3_nft_reward);
-        let sig = account::create_signer_with_capability(&borrow_global<SignerCapabilityStore>(@dat3_routel).sinCap);
+        let user_r = borrow_global_mut<UsersReward>(@dat3_reward);
+        let fees = borrow_global<FeeStore>(@dat3_reward);
+        let sig = account::create_signer_with_capability(&borrow_global<SignerCapabilityStore>(@dat3_reward).sinCap);
 
         //receiver earn
-        let rec = simple_mapv1::borrow_mut(&mut user_r.data, &receiver);
+        let rec = smart_tablev1::borrow_mut(&mut user_r.data, receiver);
         let earn = (((spend as u128) * 70 / 100) as u64);
         rec.total_earn = rec.total_earn + earn;
         rec.reward = earn;
@@ -316,7 +333,7 @@ module dat3::reward {
         };
 
         //sender spend
-        let req = simple_mapv1::borrow_mut(&mut user_r.data, &sender);
+        let req = smart_tablev1::borrow_mut(&mut user_r.data, sender);
         req.total_spend = req.total_spend + spend ;
         req.taday_spend = req.taday_spend + spend ;
         let sp = (((spend as u128) / fees.invite_reward_fee_den * fees.invite_reward_fee_num) as u64);
@@ -328,31 +345,31 @@ module dat3::reward {
 
 
     //Modify nft reward data
-  fun invitation_reward(fid: u64, den: u128, num: u128, amount: u64, is_spend: bool)
+    fun invitation_reward(fid: u64, den: u128, num: u128, amount: u64, is_spend: bool)
     acquires SignerCapabilityStore {
         let val = (((amount as u128) / den * num) as u64);
         //Get resource account signature
-        let sig = account::create_signer_with_capability(&borrow_global<SignerCapabilityStore>(@dat3_routel).sinCap);
+        let sig = account::create_signer_with_capability(&borrow_global<SignerCapabilityStore>(@dat3_reward).sinCap);
         //Withdraw coin  from pool
         let coin = pool::withdraw_coin(val);
         //Sent to nft invitation reward
         invitation_reward::invitation_reward(&sig, fid, coin, is_spend) ;
     }
 
-    public fun add_invitee(owner: &signer,fid:u64,user:address) acquires SignerCapabilityStore {
+    public fun add_invitee(owner: &signer, fid: u64, user: address) acquires SignerCapabilityStore {
         assert!(signer::address_of(owner) == @dat3, error::permission_denied(PERMISSION_DENIED));
-        let sig = account::create_signer_with_capability(&borrow_global<SignerCapabilityStore>(@dat3_routel).sinCap);
-        invitation_reward::add_invitee(&sig,fid,user)
+        let sig = account::create_signer_with_capability(&borrow_global<SignerCapabilityStore>(@dat3_reward).sinCap);
+        invitation_reward::add_invitee(&sig, fid, user)
     }
 
     //get user charging standard ( discard)
     #[view]
     public fun fee_of_mine(user: address): (u64, u64, u64) acquires FeeStore, UsersReward
     {
-        let fee_s = borrow_global<FeeStore>(@dat3_routel);
-        let user_r = borrow_global<UsersReward>(@dat3_routel);
-        if (simple_mapv1::contains_key(&user_r.data, &user)) {
-            let is_me = simple_mapv1::borrow(&user_r.data, &user);
+        let fee_s = borrow_global<FeeStore>(@dat3_reward);
+        let user_r = borrow_global<UsersReward>(@dat3_reward);
+        if (smart_tablev1::contains(&user_r.data, user)) {
+            let is_me = smart_tablev1::borrow(&user_r.data, user);
             return (fee_s.chatFee, is_me.mFee, *simple_mapv1::borrow(&fee_s.mFee, &is_me.mFee))
         };
         return (fee_s.chatFee, 1u64, *simple_mapv1::borrow(&fee_s.mFee, &1u64))
@@ -362,7 +379,7 @@ module dat3::reward {
     #[view]
     public fun fee_of_all(): (u64, vector<u64>) acquires FeeStore
     {
-        let fee = borrow_global<FeeStore>(@dat3_routel);
+        let fee = borrow_global<FeeStore>(@dat3_reward);
         let vl = vector::empty<u64>();
         vector::push_back(&mut vl, *simple_mapv1::borrow(&fee.mFee, &1));
         vector::push_back(&mut vl, *simple_mapv1::borrow(&fee.mFee, &2));
@@ -375,7 +392,7 @@ module dat3::reward {
 
     //get user assets
     #[view]
-    public fun assets(addr: address): (u64,  u64, u64, u64, u64, u64, u64, u64, u64, u64, u64, u64, u64)
+    public fun assets(addr: address): (u64, u64, u64, u64, u64, u64, u64, u64, u64, u64, u64, u64, u64)
     acquires UsersReward, FeeStore
     {
         let _uid = 0u64;
@@ -390,11 +407,11 @@ module dat3::reward {
         let _total_spend = 0u64;
         let _total_earn: u64 = 0;
         let _taday_earn: u64 = 0;
-        let user_r = borrow_global<UsersReward>(@dat3_routel);
-        let fee_s = borrow_global<FeeStore>(@dat3_routel);
+        let user_r = borrow_global<UsersReward>(@dat3_reward);
+        let fee_s = borrow_global<FeeStore>(@dat3_reward);
 
-        if (simple_mapv1::contains_key(&user_r.data, &addr)) {
-            let r = simple_mapv1::borrow(&user_r.data, &addr);
+        if (smart_tablev1::contains(&user_r.data, addr)) {
+            let r = smart_tablev1::borrow(&user_r.data, addr);
             _uid = r.uid;
             _fid = r.fid;
             _mFee = *simple_mapv1::borrow(&fee_s.mFee, &r.mFee);
@@ -421,7 +438,7 @@ module dat3::reward {
             _dat3 = coin::balance<DAT3>(addr)
         } ;
         (_uid, _fid, _mFee, _apt, _dat3, _reward, _reward_claimed,
-            _reward_dat3, _reward_dat3_claimed,  _taday_spend, _total_spend, _total_earn, _taday_earn)
+            _reward_dat3, _reward_dat3_claimed, _taday_spend, _total_spend, _total_earn, _taday_earn)
     }
 
     #[view]
@@ -436,9 +453,10 @@ module dat3::reward {
         let _dat3 = 0u64;
         let _every_reward_time = vector::empty<u64>();
         let _every_reward = vector::empty<u64>();
-        let ueer_r = borrow_global<UsersReward>(@dat3_routel);
-        if (simple_mapv1::contains_key(&ueer_r.data, &addr)) {
-            let r = simple_mapv1::borrow(&ueer_r.data, &addr);
+        let ueer_r = borrow_global<UsersReward>(@dat3_reward);
+        if (smart_tablev1::contains(&ueer_r.data, addr)) {
+            let data=&ueer_r.data;
+            let r = smart_tablev1::borrow(data, addr);
             _taday_spend = r.taday_spend;
             _total_spend = r.total_spend;
             _total_earn = r.total_earn;
@@ -458,4 +476,5 @@ module dat3::reward {
         };
         (_taday_spend, _total_spend, _total_earn, _dat3, _every_reward_time, _every_reward, _taday_earn_key, _taday_earn)
     }
+
 }
