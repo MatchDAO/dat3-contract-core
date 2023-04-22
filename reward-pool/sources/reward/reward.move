@@ -374,7 +374,26 @@ module dat3::reward {
         };
         return (fee_s.chatFee, 1u64, *simple_mapv1::borrow(&fee_s.mFee, &1u64))
     }
+    #[view]
+    public fun fee_with(user: address,consumer:address): (u64, u64, u64,u64, u64) acquires FeeStore, UsersReward
+    {
+        let _apt = 0u64;
+        let _dat3 = 0u64;
+        if (coin::is_account_registered<0x1::aptos_coin::AptosCoin>(consumer)) {
+            _apt = coin::balance<0x1::aptos_coin::AptosCoin>(consumer)
+        };
+        if (coin::is_account_registered<DAT3>(consumer)) {
+            _dat3 = coin::balance<DAT3>(consumer)
+        } ;
+        let fee_s = borrow_global<FeeStore>(@dat3_reward);
+        let user_r = borrow_global<UsersReward>(@dat3_reward);
+        if (smart_tablev1::contains(&user_r.data, user)) {
+            let is_me = smart_tablev1::borrow(&user_r.data, user);
+            return (fee_s.chatFee, is_me.mFee, *simple_mapv1::borrow(&fee_s.mFee, &is_me.mFee),_apt,_dat3)
+        };
 
+        return (fee_s.chatFee, 1u64, *simple_mapv1::borrow(&fee_s.mFee, &1u64),_apt,_dat3)
+    }
     //get all of charging standard
     #[view]
     public fun fee_of_all(): (u64, vector<u64>) acquires FeeStore
