@@ -84,10 +84,10 @@ module dat3::reward {
     const INVALID_ID: u64 = 400;
 
     public entry fun sys_user_init(account: &signer, fid: u64, uid: u64, user: address)
-    acquires UsersReward
+    acquires UsersReward, AdminStore
     {
         let _user_address = signer::address_of(account);
-        assert!(_user_address == @dat3, error::permission_denied(PERMISSION_DENIED));
+        assert!(_user_address == borrow_global<AdminStore>(@dat3_reward).admin, error::permission_denied(PERMISSION_DENIED));
         if (!coin::is_account_registered<0x1::aptos_coin::AptosCoin>(user)) {
             create_account(user);
         };
@@ -182,8 +182,8 @@ module dat3::reward {
 
         if (!smart_tablev1::contains(&user_r.data, user_address)) {
             smart_tablev1::add(&mut user_r.data, user_address, Reward {
-                uid: 0u64,
-                fid: 0u64,
+                uid,
+                fid,
                 //call fee
                 mFee: 1u64,
                 //apt
@@ -233,7 +233,12 @@ module dat3::reward {
             &resourceSigner,
             FeeStore { invite_reward_fee_den: 10000, invite_reward_fee_num: 500, chatFee: 1000000, mFee }
         );
+        move_to(
+            &resourceSigner,
+            AdminStore { admin: @dat3 }
+        );
     }
+
 
     //claim_reward
     public entry fun claim_dat3_reward(account: &signer) acquires UsersReward
@@ -267,10 +272,10 @@ module dat3::reward {
     }
 
     //Modify  charging standard
-    public entry fun change_sys_fee(user: &signer, grade: u64, fee: u64, cfee: u64) acquires FeeStore
+    public entry fun change_sys_fee(user: &signer, grade: u64, fee: u64, cfee: u64) acquires FeeStore, AdminStore
     {
         let user_address = signer::address_of(user);
-        assert!(user_address == @dat3, error::permission_denied(PERMISSION_DENIED));
+        assert!(user_address == borrow_global<AdminStore>(@dat3_reward).admin, error::permission_denied(PERMISSION_DENIED));
         assert!(grade > 0 && grade <= 5, error::out_of_range(OUT_OF_RANGE));
         assert!(fee > 0, error::out_of_range(OUT_OF_RANGE));
         let fee_s = borrow_global_mut<FeeStore>(@dat3_reward);
@@ -281,6 +286,14 @@ module dat3::reward {
             let old_fee = simple_mapv1::borrow_mut(&mut fee_s.mFee, &grade);
             *old_fee = fee;
         };
+    }
+
+    public entry fun change_admin(admin: &signer, user: address)
+    acquires AdminStore {
+        let user_address = signer::address_of(admin);
+        let admin_s = borrow_global_mut<AdminStore>(@dat3_reward);
+        assert!(user_address == admin_s.admin, error::permission_denied(PERMISSION_DENIED))
+        admin_s.admin = user;
     }
 
     public entry fun change_my_fee(user: &signer, grade: u64)
@@ -356,8 +369,8 @@ module dat3::reward {
         invitation_reward::invitation_reward(&sig, fid, coin, is_spend) ;
     }
 
-    public fun add_invitee(owner: &signer, fid: u64, user: address) acquires SignerCapabilityStore {
-        assert!(signer::address_of(owner) == @dat3, error::permission_denied(PERMISSION_DENIED));
+    public entry fun add_invitee(owner: &signer, fid: u64, user: address) acquires SignerCapabilityStore, AdminStore {
+        assert!(signer::address_of(owner) ==  borrow_global<AdminStore>(@dat3_reward).admin, error::permission_denied(PERMISSION_DENIED));
         let sig = account::create_signer_with_capability(&borrow_global<SignerCapabilityStore>(@dat3_reward).sinCap);
         invitation_reward::add_invitee(&sig, fid, user)
     }
@@ -374,8 +387,9 @@ module dat3::reward {
         };
         return (fee_s.chatFee, 1u64, *simple_mapv1::borrow(&fee_s.mFee, &1u64))
     }
+
     #[view]
-    public fun fee_with(user: address,consumer:address): (u64, u64, u64,u64, u64) acquires FeeStore, UsersReward
+    public fun fee_with(user: address, consumer: address): (u64, u64, u64, u64, u64) acquires FeeStore, UsersReward
     {
         let _apt = 0u64;
         let _dat3 = 0u64;
@@ -389,11 +403,12 @@ module dat3::reward {
         let user_r = borrow_global<UsersReward>(@dat3_reward);
         if (smart_tablev1::contains(&user_r.data, user)) {
             let is_me = smart_tablev1::borrow(&user_r.data, user);
-            return (fee_s.chatFee, is_me.mFee, *simple_mapv1::borrow(&fee_s.mFee, &is_me.mFee),_apt,_dat3)
+            return (fee_s.chatFee, is_me.mFee, *simple_mapv1::borrow(&fee_s.mFee, &is_me.mFee), _apt, _dat3)
         };
 
-        return (fee_s.chatFee, 1u64, *simple_mapv1::borrow(&fee_s.mFee, &1u64),_apt,_dat3)
+        return (fee_s.chatFee, 1u64, *simple_mapv1::borrow(&fee_s.mFee, &1u64), _apt, _dat3)
     }
+
     //get all of charging standard
     #[view]
     public fun fee_of_all(): (u64, vector<u64>) acquires FeeStore
@@ -441,11 +456,15 @@ module dat3::reward {
 
             _taday_spend = r.total_spend;
             _total_spend = r.total_spend;
+            _total_earn = r.total_earn;
             let len = simple_mapv1::length(&r.taday_earn);
-            let now_key = ((timestamp::now_seconds() as u128) / SECONDS_OF_DAY as u64);
-            let (k, v) = simple_mapv1::find_index(&r.taday_earn, len - 1);
-            if (*k == now_key) {
-                _taday_earn = *v;
+            if (len > 0) {
+                let now_key = ((timestamp::now_seconds() as u128) / SECONDS_OF_DAY as u64);
+
+                let (k, v) = simple_mapv1::find_index(&r.taday_earn, len - 1);
+                if (*k == now_key) {
+                    _taday_earn = *v;
+                };
             };
         }  ;
         let _apt = 0u64;
@@ -474,7 +493,7 @@ module dat3::reward {
         let _every_reward = vector::empty<u64>();
         let ueer_r = borrow_global<UsersReward>(@dat3_reward);
         if (smart_tablev1::contains(&ueer_r.data, addr)) {
-            let data=&ueer_r.data;
+            let data = &ueer_r.data;
             let r = smart_tablev1::borrow(data, addr);
             _taday_spend = r.taday_spend;
             _total_spend = r.total_spend;
@@ -495,5 +514,4 @@ module dat3::reward {
         };
         (_taday_spend, _total_spend, _total_earn, _dat3, _every_reward_time, _every_reward, _taday_earn_key, _taday_earn)
     }
-
 }
