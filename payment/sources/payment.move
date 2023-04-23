@@ -106,16 +106,30 @@ module dat3::payment {
     {
         return reward::fee_of_mine(account)
     }
+
     #[view]
-    public fun fee_with(account: address,consumer:address): (u64, u64, u64, u64, u64)
+    public fun fee_with(account: address, consumer: address): (u64, u64, u64, u64, u64)
     {
-        return reward::fee_with(account,consumer)
+        return reward::fee_with(account, consumer)
     }
 
     #[view]
     public fun fee_of_all(): (u64, vector<u64>)
     {
         return reward::fee_of_all()
+    }
+
+    #[view]
+    public fun coin_registered<CoinType>(user: address): bool
+    {
+        return coin::is_account_registered<CoinType>(user)
+    }
+
+    public entry fun coin_register<CoinType>(user: &signer)
+    {
+        if (!coin::is_account_registered<CoinType>(signer::address_of(user))) {
+            coin::register<CoinType>(user)
+        }
     }
 
     #[view]
@@ -222,7 +236,7 @@ module dat3::payment {
     }
 
     //Charge per minute
-    public entry fun one_minute(requester: &signer, receiver: address )
+    public entry fun one_minute(requester: &signer, receiver: address)
     acquires CurrentRoom, SignerCapabilityStore
     {
         let req_addr = signer::address_of(requester);
@@ -267,7 +281,10 @@ module dat3::payment {
         //new_with_config<address, Reward>(5, 75, 200)
         move_to(&resourceSigner, DAT3MsgHoder { data: smart_tablev1::new_with_config<address, MsgHoder>(5, 75, 200) });
 
-        move_to(&resourceSigner, CurrentRoom { data: smart_tablev1::new_with_config<address, vector<Call>>(5, 75, 200) });
+        move_to(
+            &resourceSigner,
+            CurrentRoom { data: smart_tablev1::new_with_config<address, vector<Call>>(5, 75, 200) }
+        );
     }
 
     /********************/
