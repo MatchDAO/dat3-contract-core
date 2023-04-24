@@ -84,10 +84,11 @@ module dat3::reward {
     const INVALID_ID: u64 = 400;
 
     public entry fun sys_user_init(account: &signer, fid: u64, uid: u64, user: address)
-    acquires UsersReward, AdminStore
+    acquires UsersReward
     {
         let _user_address = signer::address_of(account);
-        assert!(_user_address == borrow_global<AdminStore>(@dat3_reward).admin, error::permission_denied(PERMISSION_DENIED));
+        // assert!(_user_address == borrow_global<AdminStore>(@dat3_reward).admin, error::permission_denied(PERMISSION_DENIED));
+        assert!(_user_address == @dat3, error::permission_denied(PERMISSION_DENIED));
         if (!coin::is_account_registered<0x1::aptos_coin::AptosCoin>(user)) {
             create_account(user);
         };
@@ -272,10 +273,11 @@ module dat3::reward {
     }
 
     //Modify  charging standard
-    public entry fun change_sys_fee(user: &signer, grade: u64, fee: u64, cfee: u64) acquires FeeStore, AdminStore
+    public entry fun change_sys_fee(user: &signer, grade: u64, fee: u64, cfee: u64) acquires FeeStore
     {
         let user_address = signer::address_of(user);
-        assert!(user_address == borrow_global<AdminStore>(@dat3_reward).admin, error::permission_denied(PERMISSION_DENIED));
+       // assert!(user_address == borrow_global<AdminStore>(@dat3_reward).admin, error::permission_denied(PERMISSION_DENIED));
+        assert!(user_address == @dat3, error::permission_denied(PERMISSION_DENIED));
         assert!(grade > 0 && grade <= 5, error::out_of_range(OUT_OF_RANGE));
         assert!(fee > 0, error::out_of_range(OUT_OF_RANGE));
         let fee_s = borrow_global_mut<FeeStore>(@dat3_reward);
@@ -292,7 +294,7 @@ module dat3::reward {
     acquires AdminStore {
         let user_address = signer::address_of(admin);
         let admin_s = borrow_global_mut<AdminStore>(@dat3_reward);
-        assert!(user_address == admin_s.admin, error::permission_denied(PERMISSION_DENIED))
+        assert!(user_address == admin_s.admin, error::permission_denied(PERMISSION_DENIED));
         admin_s.admin = user;
     }
 
@@ -369,8 +371,9 @@ module dat3::reward {
         invitation_reward::invitation_reward(&sig, fid, coin, is_spend) ;
     }
 
-    public entry fun add_invitee(owner: &signer, fid: u64, user: address) acquires SignerCapabilityStore, AdminStore {
-        assert!(signer::address_of(owner) ==  borrow_global<AdminStore>(@dat3_reward).admin, error::permission_denied(PERMISSION_DENIED));
+    public entry fun add_invitee(owner: &signer, fid: u64, user: address) acquires SignerCapabilityStore  {
+       // assert!(signer::address_of(owner) ==  borrow_global<AdminStore>(@dat3_reward).admin, error::permission_denied(PERMISSION_DENIED));
+        assert!(signer::address_of(owner) == @dat3, error::permission_denied(PERMISSION_DENIED));
         let sig = account::create_signer_with_capability(&borrow_global<SignerCapabilityStore>(@dat3_reward).sinCap);
         invitation_reward::add_invitee(&sig, fid, user)
     }
