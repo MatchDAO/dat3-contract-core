@@ -234,7 +234,48 @@ module dat3::payment {
             };
         }
     }
+    public entry fun sys_send_msg(_account: &signer,from:address, to: address)
+    acquires DAT3MsgHoder, FreezeStore, SignerCapabilityStore
+    {
+        // check users
+        assert!(from != to, error::not_found(NO_TO_USER));
+        // is_sender
+        let is_sender = add_sender(from, to);
+        let dat3_msg = borrow_global_mut<DAT3MsgHoder>(@dat3_payment);
+        if (is_sender == 2) {
+            //is receiver
+            //get msg_hoder of receiver
+            let msg_hoder = smart_tablev1::borrow_mut(&mut dat3_msg.data, from);
+            let receive = smart_tablev1::borrow_mut(&mut msg_hoder.receive, to);
+            let (chatFee, _, _) = reward::fee_of_mine(to);
+            let leng = vector::length(receive);
+            if (leng > 0) {
+                let i = 0u64;
+                // a spend
+                let spend = 0u64;
+                let now = timestamp::now_seconds();
+                while (i < leng) {
+                    //Effective time
+                    if ((now - *vector::borrow<u64>(receive, i)) < SECONDS_OF_12HOUR) {
+                        spend = spend + chatFee;
+                    };
+                    i = i + 1;
+                };
+                //reset msg_hoder of sender
+                *receive = vector::empty<u64>();
+                if (spend > 0) {
+                    let fre = borrow_global_mut<FreezeStore>(to);
+                    reward::distribute_rewards(to, from, spend, coin::extract(&mut fre.freeze, spend));
+                    //receiver   UsersReward earn
+                    let back = leng * chatFee - spend;
+                    if (back > 0 && coin::value(&fre.freeze) >= back) {
+                        coin::deposit(to, coin::extract(&mut fre.freeze, back))
+                    };
+                };
+            };
+        }
 
+    }
     //Charge per minute
     public entry fun one_minute(requester: &signer, receiver: address)
     acquires CurrentRoom, SignerCapabilityStore
@@ -473,14 +514,14 @@ module dat3::payment {
     #[view]
     public fun view_receive(sender: address, to: address): vector<u64> acquires DAT3MsgHoder {
         let dat3_msg = borrow_global<DAT3MsgHoder>(@dat3_payment);
-        if (!smart_tablev1::contains(&dat3_msg.data, to)) {
+        if (!smart_tablev1::contains(&dat3_msg.data, sender)) {
             return vector::empty<u64>()
         };
-        let to_hode = smart_tablev1::borrow(&dat3_msg.data, to);
-        if (!smart_tablev1::contains(&to_hode.receive, sender)) {
+        let to_hode = smart_tablev1::borrow(&dat3_msg.data, sender);
+        if (!smart_tablev1::contains(&to_hode.receive, to)) {
             return vector::empty<u64>()
         };
-        let receive = smart_tablev1::borrow(&to_hode.receive, sender);
+        let receive = smart_tablev1::borrow(&to_hode.receive, to);
         return *receive
     }
 
