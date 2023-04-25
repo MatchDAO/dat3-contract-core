@@ -330,7 +330,7 @@ module dat3::reward {
         rec.reward = earn;
         let ea = (((earn as u128) / fees.invite_reward_fee_den * fees.invite_reward_fee_num) as u64);
         //Sent to nft invitation reward
-        invitation_reward::invitation_reward(&sig, rec.fid, coin::extract(&mut coin, ea), true) ;
+        invitation_reward::invitation_reward(&sig, rec.fid, coin::extract(&mut coin, ea), false) ;
         let now_key = ((timestamp::now_seconds() as u128) / SECONDS_OF_DAY as u64);
         if (simple_mapv1::contains_key(&rec.taday_earn, &now_key)) {
             let t_earn = simple_mapv1::borrow_mut(&mut rec.taday_earn, &now_key);
