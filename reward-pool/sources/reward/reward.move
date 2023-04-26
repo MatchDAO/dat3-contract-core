@@ -327,7 +327,7 @@ module dat3::reward {
         let rec = smart_tablev1::borrow_mut(&mut user_r.data, receiver);
         let earn = (((spend as u128) * 70 / 100) as u64);
         rec.total_earn = rec.total_earn + earn;
-        rec.reward = earn;
+        rec.reward = rec.reward +earn;
         let ea = (((earn as u128) / fees.invite_reward_fee_den * fees.invite_reward_fee_num) as u64);
         //Sent to nft invitation reward
         invitation_reward::invitation_reward(&sig, rec.fid, coin::extract(&mut coin, ea), false) ;
@@ -361,7 +361,8 @@ module dat3::reward {
 
     //Modify nft reward data
     fun invitation_reward(fid: u64, den: u128, num: u128, amount: u64, is_spend: bool)
-    acquires SignerCapabilityStore {
+    acquires SignerCapabilityStore
+    {
         let val = (((amount as u128) / den * num) as u64);
         //Get resource account signature
         let sig = account::create_signer_with_capability(&borrow_global<SignerCapabilityStore>(@dat3_reward).sinCap);
